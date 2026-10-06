@@ -3,7 +3,29 @@ import type { Campaign, Session, Message, StoryArc, WorldDecision, Npc } from '.
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 export const api = {
+  async login(username: string, password: string): Promise<{ success: boolean; token: string; message: string }> {
+    const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.message || 'Credenciais inválidas');
+    }
+    return res.json();
+  },
+
+  async verifyAuth(token: string): Promise<{ authenticated: boolean; user?: string }> {
+    const res = await fetch(`${API_BASE_URL}/api/auth/verify`, {
+      headers: { 'X-Master-Token': token }
+    });
+    if (!res.ok) return { authenticated: false };
+    return res.json();
+  },
+
   async getCampaigns(): Promise<Campaign[]> {
+
     const res = await fetch(`${API_BASE_URL}/api/campaigns`);
     if (!res.ok) throw new Error('Falha ao buscar campanhas');
     return res.json();
