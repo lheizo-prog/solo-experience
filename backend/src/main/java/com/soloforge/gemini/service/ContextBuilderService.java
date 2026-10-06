@@ -7,10 +7,13 @@ import com.soloforge.campaign.entity.StoryArc;
 import com.soloforge.campaign.repository.StoryArcRepository;
 import com.soloforge.npc.entity.Npc;
 import com.soloforge.npc.repository.NpcRepository;
+import com.soloforge.session.entity.Session;
+import com.soloforge.session.repository.SessionRepository;
 import com.soloforge.world.entity.WorldDecision;
 import com.soloforge.world.repository.WorldDecisionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
 
 import java.util.List;
 
@@ -21,6 +24,8 @@ public class ContextBuilderService {
     private final StoryArcRepository storyArcRepository;
     private final NpcRepository npcRepository;
     private final WorldDecisionRepository worldDecisionRepository;
+    private final SessionRepository sessionRepository;
+
 
     public String buildMasterPrompt(Campaign campaign) {
         StringBuilder sb = new StringBuilder();
@@ -94,6 +99,20 @@ public class ContextBuilderService {
             }
             sb.append("\n");
         }
+
+        // Resumos dos Atos Anteriores (Memória Episódica)
+        List<Session> pastSessions = sessionRepository.findByCampaignIdOrderBySessionNumberAsc(campaign.getId());
+        boolean hasPastSummaries = pastSessions.stream().anyMatch(s -> s.getSummary() != null && !s.getSummary().isBlank());
+        if (hasPastSummaries) {
+            sb.append("=== RESUMO DOS ATOS / SESSÕES ANTERIORES ===\n");
+            for (Session s : pastSessions) {
+                if (s.getSummary() != null && !s.getSummary().isBlank()) {
+                    sb.append("Ato ").append(s.getSessionNumber()).append(" (").append(s.getTitle() != null ? s.getTitle() : "Capítulo").append("):\n");
+                    sb.append(s.getSummary()).append("\n\n");
+                }
+            }
+        }
+
 
         sb.append("=== DIRETRIZES ESTATUTÁRIAS DO MESTRE (ÁRBITRO DE REGRAS) ===\n");
         sb.append("1. **ÁRBITRO IMPARCIAL DAS REGRAS**: Você DEVE verificar e seguir estritamente o SISTEMA DE REGRAS definido acima. NUNCA ignore as mecânicas, limitações de atributos ou magias.\n");

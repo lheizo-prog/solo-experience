@@ -53,6 +53,15 @@ export const api = {
     return res.json();
   },
 
+  async concludeSession(sessionId: string): Promise<Session> {
+    const res = await fetch(`${API_BASE_URL}/api/sessions/${sessionId}/conclude`, {
+      method: 'POST'
+    });
+    if (!res.ok) throw new Error('Falha ao concluir sessão e gerar resumo');
+    return res.json();
+  },
+
+
   // === ARCOS NARRATIVOS (QUESTS) ===
   async getArcs(campaignId: string): Promise<StoryArc[]> {
     const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/arcs`);

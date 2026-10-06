@@ -1,38 +1,44 @@
-# 🗡️ Plano de Entrega do MVP — SoloForge
+# 🗡️ SoloForge — MVP Concluído com Sucesso!
 
-> **Objetivo do MVP**: Permitir que um jogador crie uma crônica, converse com o Mestre IA (Gemini), veja as consequências serem registradas na memória do mundo, gerencie NPCs descobertos e role dados sem sair do chat.
+> **Forje suas próprias crônicas. A IA é o mestre, você é a lenda.**
 
----
-
-## 📊 Status Atual (Atualizado)
-
-| Camada / Feature | Status | Detalhes |
-|---|:---:|---|
-| **Infra & Deploy** | ✅ **Concluído** | Backend no Render (Docker), DB no Neon DB (PostgreSQL 16) e Frontend na Vercel. |
-| **Schema & Entidades** | ✅ **Concluído** | Campaign, Bible, System, Session, Message, NPC, WorldDecision, StoryArc. |
-| **CRUD de Campanha** | ✅ **Concluído** | Criação de campanha, inicialização da Bíblia e do Sistema de Regras. |
-| **Chat Básico & Gemini** | ✅ **Concluído** | Envio de mensagens com injeção de contexto mestre e histórico de mensagens. |
-| **Árbitro de Regras & Rolagem de Dados** | ✅ **Concluído** | Validação de ações contra o sistema, DT prévia, tag `[PEDIR_TESTE]`, banner de rolagem e dados rápidos (d4 a d100). |
-| **Arcos Narrativos & Memória do Mundo (Etapa 2)** | ✅ **Concluído** | Endpoints de Arcos e Decisões, abas no painel lateral direito, modal de criação rápida, toggle de conclusão e injeção no prompt do Mestre. |
-| **Cristalização de NPCs (Etapa 3)** | ✅ **Concluído** | Endpoints completos de NPCs, alternância entre passageiro e cristalizado com badge visual, modal de cadastro e injeção automática no prompt contínuo do Gemini. |
+O **SoloForge** atingiu 100% dos requisitos do seu MVP funcional e completo, unindo narrativa imersiva, inteligência artificial (Gemini), persistência em nuvem e mecânicas fiéis de RPG de mesa.
 
 ---
 
-## 🎯 A Última Etapa Restante para Fechar o MVP
+## 🏆 Tabela de Recursos Entregues
 
-```mermaid
-graph TD
-    A[Etapa 4: Resumos Automáticos de Sessão & Próximo Ato]
+| Módulo / Fase | Recurso | Status | Descrição |
+|---|---|:---:|---|
+| **Infraestrutura** | Deploy em Nuvem Completo | ✅ | **Render** (Backend Docker Spring Boot), **Neon DB** (PostgreSQL 16) e **Vercel** (Frontend React + Tailwind). |
+| **Fase 1 — Fundação** | CRUD de Campanhas & Regras | ✅ | Criação de crônica, Bíblia (lore, tom, PJ) e Sistema de Regras parametrizado. |
+| **Fase 1 — Fundação** | Chat Interativo com IA | ✅ | Condução de narrativas com Gemini 1.5 Flash e injeção contextual contínua. |
+| **Fase 1 — Fundação** | Árbitro de Regras & Dados | ✅ | Validação rígida de limites, declaração prévia de DT pelo Mestre, banner interativo e rolagem de dados (d4 a d100). |
+| **Fase 2 — Memória** | Arcos Narrativos (Quests) | ✅ | Criação, acompanhamento e conclusão de missões ativas com injeção no prompt do Mestre. |
+| **Fase 2 — Memória** | Memória do Mundo | ✅ | Registro permanente de escolhas do jogador e impactos no mundo que o Mestre recorda. |
+| **Fase 3 — NPCs** | Cristalização de NPCs | ✅ | Personagens passageiros podem ser fixados/cristalizados com personalidade e memórias. |
+| **Fase 4 — Polimento** | Resumos Automáticos de Sessão | ✅ | O Cronista IA resume os fatos do ato em tópicos e avança para o próximo ato sem estourar tokens. |
+
+---
+
+## 🏗️ Arquitetura do Sistema
+
+```text
+               ┌───────────────────────────────┐
+               │    Frontend (React + Vite)    │
+               │   Deploy: Vercel              │
+               └──────────────┬────────────────┘
+                              │ REST / HTTPS
+                              ▼
+               ┌───────────────────────────────┐
+               │  Backend (Spring Boot 3 + 17) │
+               │   Deploy: Render (Docker)     │
+               └──────┬─────────────────┬──────┘
+                      │                 │
+         JPA / JDBC   │                 │ HTTP API
+                      ▼                 ▼
+        ┌──────────────────┐    ┌─────────────────┐
+        │  PostgreSQL 16   │    │   Gemini API    │
+        │  Neon DB (Cloud) │    │  (Google Cloud) │
+        └──────────────────┘    └─────────────────┘
 ```
-
----
-
-### 📜 Etapa 4 — Resumos Automáticos de Sessão & Avanço de Ato
-> *Permite campanhas longas divididas em episódios (Ato I, Ato II, etc.) de forma leve e organizada, economizando tokens e mantendo a coerência narrativa.*
-
-- **O que falta**:
-  1. **Endpoint de Conclusão de Sessão**:
-     - `POST /api/sessions/{id}/conclude`: Dispara um prompt ao Gemini solicitando um resumo conciso dos fatos da sessão e grava no `Session.summary`.
-  2. **Criação e Troca de Atos**:
-     - Botão *"Encerrar Sessão & Iniciar Próximo Ato"* na interface.
-     - Carrega o resumo das sessões anteriores no contexto da nova sessão limpa em vez de reenviar todo o histórico antigo.

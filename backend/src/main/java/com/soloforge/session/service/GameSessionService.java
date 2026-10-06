@@ -59,6 +59,50 @@ public class GameSessionService {
     }
 
     @Transactional
+    public SessionDto.SessionResponse concludeSession(UUID sessionId) {
+        Session session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Sessão não encontrada: " + sessionId));
+
+        List<Message> messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
+        
+        // Solicita ao Gemini para gerar um resumo crônico conciso
+        String summary = "Sessão concluída.";
+        if (!messages.isEmpty()) {
+            StringBuilder conversationText = new StringBuilder();
+            for (Message m : messages) {
+                conversationText.append(m.getSenderName() != null ? m.getSenderName() : m.getSender())
+                        .append(": ")
+                        .append(m.getContent())
+                        .append("\n");
+            }
+
+            String summaryPrompt = "Você é o Cronista Real do SoloForge. Resuma os acontecimentos mais marcantes, batalhas, decisões e descobertas da conversa a seguir em 3 a 4 tópicos épicos e concisos. Este resumo servirá de memória histórica para os próximos atos da crônica.\n\n"
+                    + "=== DIÁLOGO DA SESSÃO ===\n" + conversationText;
+
+            summary = geminiService.generateStoryResponse(
+                    "Você é um cronista e historiador épico. Gere apenas o resumo em tópicos objetivos.",
+                    List.of(Map.of("role", "PLAYER", "text", summaryPrompt))
+            );
+        }
+
+        session.setSummary(summary);
+        Session saved = sessionRepository.save(session);
+
+        // Cria automaticamente o próximo Ato
+        Campaign campaign = session.getCampaign();
+        int nextNumber = session.getSessionNumber() + 1;
+        Session nextSession = Session.builder()
+                .campaign(campaign)
+                .sessionNumber(nextNumber)
+                .title("Ato " + nextNumber)
+                .build();
+        sessionRepository.save(nextSession);
+
+        return toSessionDto(saved);
+    }
+
+
+    @Transactional
     public SessionDto.MessageResponse sendPlayerMessage(UUID sessionId, SessionDto.CreateMessageRequest request) {
         Session session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("Sessão não encontrada"));

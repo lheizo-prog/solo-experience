@@ -20,8 +20,12 @@ import {
   CheckCircle2,
   Trash2,
   Users,
-  Sparkle
+  Sparkle,
+  History,
+  FastForward
 } from 'lucide-react';
+
+
 import { api } from './services/api';
 import type { Campaign, Session, Message, StoryArc, WorldDecision, Npc } from './types/soloforge';
 
@@ -38,12 +42,14 @@ type RightPanelTab = 'bible' | 'arcs' | 'decisions' | 'npcs';
 export function App() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
-  const [, setSessions] = useState<Session[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isConcludingSession, setIsConcludingSession] = useState(false);
   const [isCreatingModal, setIsCreatingModal] = useState(false);
+
 
   // Rolador & Teste Ativo solicitado pelo Mestre
   const [pendingCheck, setPendingCheck] = useState<PendingCheck | null>(null);
@@ -416,6 +422,66 @@ export function App() {
     }
   };
 
+  // Handlers para Conclusão de Sessão & Próximo Ato
+  const handleConcludeSession = async () => {
+    if (!currentSession || !selectedCampaign || isConcludingSession) return;
+    setIsConcludingSession(true);
+
+    try {
+      // 1. Conclui a sessão e obtém o resumo gerado pelo Gemini
+      await api.concludeSession(currentSession.id);
+
+      // 2. Recarrega as sessões da campanha
+      const updatedSessions = await api.getSessions(selectedCampaign.id);
+      setSessions(updatedSessions);
+
+      // 3. Muda automaticamente para o novo Ato criado
+      const nextSession = updatedSessions[updatedSessions.length - 1];
+      setCurrentSession(nextSession);
+      loadMessages(nextSession.id);
+      setPendingCheck(null);
+    } catch {
+      // Mock offline caso a rede falhe
+      const finishedActNumber = currentSession.sessionNumber;
+      const nextActNumber = finishedActNumber + 1;
+      const updatedMock: Session = {
+        ...currentSession,
+        summary: `Resumo do Ato ${finishedActNumber}: O herói avançou bravamente pelas provações, superou perigos ancestrais e desvendou pistas críticas para a crônica.`
+      };
+
+      const newActMock: Session = {
+        id: 'session-' + Date.now(),
+        campaignId: selectedCampaign.id,
+        sessionNumber: nextActNumber,
+        title: `Ato ${nextActNumber}`,
+        createdAt: new Date().toISOString()
+      };
+
+      setSessions(prev => [...prev.map(s => s.id === currentSession.id ? updatedMock : s), newActMock]);
+      setCurrentSession(newActMock);
+      setMessages([
+        {
+          id: 'intro-' + Date.now(),
+          sessionId: newActMock.id,
+          sender: 'GM',
+          senderName: 'Mestre IA',
+          content: `Inicia-se o Ato ${nextActNumber}! O pó das batalhas passadas começa a assentar, mas um novo horizonte de mistérios se descortina. O que você faz a seguir?`,
+          createdAt: new Date().toISOString()
+        }
+      ]);
+      setPendingCheck(null);
+    } finally {
+      setIsConcludingSession(false);
+    }
+  };
+
+  const handleSelectSession = (sess: Session) => {
+    setCurrentSession(sess);
+    loadMessages(sess.id);
+    setPendingCheck(null);
+  };
+
+
 
   const handleCreateCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -552,14 +618,40 @@ export function App() {
           )}
         </div>
 
-        {/* Informações da Sessão Atual */}
+        {/* Atos e Sessões da Campanha */}
         {selectedCampaign && (
-          <div className="p-4 border-t border-slate-800 bg-slate-950/40 text-xs text-slate-400">
-            <div className="flex items-center justify-between mb-1">
-              <span className="font-semibold text-slate-300">Sessão Ativa:</span>
-              <span className="text-amber-400 font-mono">#{currentSession?.sessionNumber || 1}</span>
+          <div className="p-3 border-t border-slate-800 bg-slate-950/40 text-xs">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-semibold text-slate-300 flex items-center gap-1">
+                <History className="w-3.5 h-3.5 text-amber-500" />
+                Atos da Crônica ({sessions.length})
+              </span>
             </div>
-            <p className="truncate text-slate-400">{currentSession?.title || 'Ato I'}</p>
+            <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+              {sessions.map(sess => {
+                const isSelected = currentSession?.id === sess.id;
+                return (
+                  <button
+                    key={sess.id}
+                    onClick={() => handleSelectSession(sess)}
+                    className={`w-full text-left p-1.5 rounded flex items-center justify-between text-xs transition cursor-pointer ${
+                      isSelected
+                        ? 'bg-amber-600/20 text-amber-300 border border-amber-500/30'
+                        : 'hover:bg-slate-800/60 text-slate-400'
+                    }`}
+                  >
+                    <span className="truncate">
+                      {sess.title || `Ato ${sess.sessionNumber}`}
+                    </span>
+                    {sess.summary && (
+                      <span className="text-[9px] px-1 bg-emerald-950 text-emerald-400 rounded border border-emerald-800/40">
+                        Resumido
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
       </aside>
@@ -569,26 +661,52 @@ export function App() {
         {/* Header do Chat */}
         <header className="h-16 border-b border-slate-800 px-6 flex items-center justify-between bg-slate-900/40 backdrop-blur-sm">
           <div>
-            <h2 className="font-semibold text-slate-100 flex items-center gap-2">
-              {selectedCampaign ? selectedCampaign.title : 'Selecione ou Crie uma Crônica'}
-              {selectedCampaign && (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-amber-400 border border-slate-700">
-                  {selectedCampaign.genre || 'RPG Solo'}
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold text-slate-100 flex items-center gap-2">
+                {selectedCampaign ? selectedCampaign.title : 'Selecione ou Crie uma Crônica'}
+              </h2>
+              {currentSession && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-amber-600/20 text-amber-400 border border-amber-500/30 font-medium">
+                  {currentSession.title || `Ato ${currentSession.sessionNumber}`}
                 </span>
               )}
-            </h2>
+            </div>
             <p className="text-xs text-slate-400">
-              {selectedCampaign?.synopsis || 'O Mestre IA está pronto para arbitrar as regras...'}
+              {currentSession?.summary 
+                ? `Resumo Histórico: ${currentSession.summary.slice(0, 80)}...`
+                : (selectedCampaign?.synopsis || 'O Mestre IA está pronto para arbitrar as regras...')}
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {selectedCampaign && currentSession && (
+              <button
+                onClick={handleConcludeSession}
+                disabled={isConcludingSession || isLoading}
+                className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:opacity-50 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition shadow-sm shadow-amber-900/30 cursor-pointer disabled:cursor-not-allowed"
+                title="Gera um resumo épico da sessão e inicia o próximo ato com contexto renovado"
+              >
+                {isConcludingSession ? (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                    <span>Cronista Resumindo...</span>
+                  </>
+                ) : (
+                  <>
+                    <FastForward className="w-3.5 h-3.5" />
+                    <span>Concluir Ato & Avançar</span>
+                  </>
+                )}
+              </button>
+            )}
+
             <div className="flex items-center gap-1.5 text-xs text-amber-400 bg-amber-950/40 border border-amber-800/40 px-2.5 py-1 rounded-full">
               <ShieldAlert className="w-3.5 h-3.5" />
-              Árbitro & Memória Ativos
+              Memória Ativa
             </div>
           </div>
         </header>
+
 
         {/* Mensagens da Aventura */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4">

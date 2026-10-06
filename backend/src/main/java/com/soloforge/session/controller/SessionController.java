@@ -41,4 +41,10 @@ public class SessionController {
             @Valid @RequestBody SessionDto.CreateMessageRequest request) {
         return ResponseEntity.ok(sessionService.sendPlayerMessage(sessionId, request));
     }
+
+    @PostMapping("/{sessionId}/conclude")
+    public ResponseEntity<SessionDto.SessionResponse> concludeSession(@PathVariable UUID sessionId) {
+        return ResponseEntity.ok(sessionService.concludeSession(sessionId));
+    }
 }
+
