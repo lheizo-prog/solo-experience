@@ -1,4 +1,4 @@
-# SoloForge 🗡️
+# SoloForge 
 
 > **Forje suas próprias crônicas. A IA é o mestre, você é a lenda.**
 
@@ -26,7 +26,7 @@ SoloExperience/
 
 ---
 
-## 🚀 Como Executar
+## Como Executar
 
 ### 1. Iniciar o Banco de Dados (PostgreSQL)
 Certifique-se de que o Docker Desktop está em execução e rode na raiz:

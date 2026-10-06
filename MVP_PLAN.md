@@ -1,4 +1,4 @@
-# 🗡️ SoloForge — MVP Concluído com Sucesso!
+# oloForge — MVP Concluído
 
 > **Forje suas próprias crônicas. A IA é o mestre, você é a lenda.**
 
@@ -6,7 +6,7 @@ O **SoloForge** atingiu 100% dos requisitos do seu MVP funcional e completo, uni
 
 ---
 
-## 🏆 Tabela de Recursos Entregues
+## Tabela de Recursos Entregues
 
 | Módulo / Fase | Recurso | Status | Descrição |
 |---|---|:---:|---|

@@ -31,6 +31,30 @@ export const api = {
     return res.json();
   },
 
+  async uploadRulesFiles(campaignId: string, files: File[], systemName?: string): Promise<Campaign> {
+    const formData = new FormData();
+    files.forEach(f => formData.append('files', f));
+    if (systemName) formData.append('systemName', systemName);
+
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/upload-rules`, {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) throw new Error('Falha ao processar e sintetizar arquivos de regras');
+    return res.json();
+  },
+
+  async synthesizeRulesFromText(campaignId: string, rawText: string, systemName?: string): Promise<Campaign> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/synthesize-rules`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rawText, systemName })
+    });
+    if (!res.ok) throw new Error('Falha ao sintetizar regras de texto');
+    return res.json();
+  },
+
+
   async getSessions(campaignId: string): Promise<Session[]> {
     const res = await fetch(`${API_BASE_URL}/api/sessions/campaign/${campaignId}`);
     if (!res.ok) throw new Error('Falha ao buscar sessões');
