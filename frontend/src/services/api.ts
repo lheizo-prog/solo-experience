@@ -1,8 +1,10 @@
 import type { Campaign, Session, Message } from '../types/soloforge';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+
 export const api = {
   async getCampaigns(): Promise<Campaign[]> {
-    const res = await fetch('/api/campaigns');
+    const res = await fetch(`${API_BASE_URL}/api/campaigns`);
     if (!res.ok) throw new Error('Falha ao buscar campanhas');
     return res.json();
   },
@@ -20,7 +22,7 @@ export const api = {
     statsAndAttributes?: string;
     rollInstructions?: string;
   }): Promise<Campaign> {
-    const res = await fetch('/api/campaigns', {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -30,19 +32,19 @@ export const api = {
   },
 
   async getSessions(campaignId: string): Promise<Session[]> {
-    const res = await fetch(`/api/sessions/campaign/${campaignId}`);
+    const res = await fetch(`${API_BASE_URL}/api/sessions/campaign/${campaignId}`);
     if (!res.ok) throw new Error('Falha ao buscar sessões');
     return res.json();
   },
 
   async getMessages(sessionId: string): Promise<Message[]> {
-    const res = await fetch(`/api/sessions/${sessionId}/messages`);
+    const res = await fetch(`${API_BASE_URL}/api/sessions/${sessionId}/messages`);
     if (!res.ok) throw new Error('Falha ao buscar mensagens');
     return res.json();
   },
 
   async sendMessage(sessionId: string, content: string, senderName: string = 'Herói'): Promise<Message> {
-    const res = await fetch(`/api/sessions/${sessionId}/messages`, {
+    const res = await fetch(`${API_BASE_URL}/api/sessions/${sessionId}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content, senderName })
@@ -51,3 +53,4 @@ export const api = {
     return res.json();
   }
 };
+
