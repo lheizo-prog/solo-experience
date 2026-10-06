@@ -13,10 +13,15 @@ import {
   Bot,
   Dices,
   AlertTriangle,
-  RotateCcw
+  RotateCcw,
+  Target,
+  Landmark,
+  Plus,
+  CheckCircle2,
+  Trash2
 } from 'lucide-react';
 import { api } from './services/api';
-import type { Campaign, Session, Message } from './types/soloforge';
+import type { Campaign, Session, Message, StoryArc, WorldDecision } from './types/soloforge';
 
 interface PendingCheck {
   dice: string;      // ex: "d20"
@@ -24,6 +29,8 @@ interface PendingCheck {
   attribute: string; // ex: "Destreza"
   reason: string;    // ex: "Desviar da armadilha de espinhos"
 }
+
+type RightPanelTab = 'bible' | 'arcs' | 'decisions';
 
 export function App() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -37,6 +44,21 @@ export function App() {
 
   // Rolador & Teste Ativo solicitado pelo Mestre
   const [pendingCheck, setPendingCheck] = useState<PendingCheck | null>(null);
+
+  // Painel Direito: Abas
+  const [activeTab, setActiveTab] = useState<RightPanelTab>('arcs');
+  const [arcs, setArcs] = useState<StoryArc[]>([]);
+  const [decisions, setDecisions] = useState<WorldDecision[]>([]);
+
+  // Modais de Criação Rápida de Arco e Decisão
+  const [isNewArcModal, setIsNewArcModal] = useState(false);
+  const [newArcTitle, setNewArcTitle] = useState('');
+  const [newArcGoal, setNewArcGoal] = useState('');
+
+  const [isNewDecisionModal, setIsNewDecisionModal] = useState(false);
+  const [newDecisionTitle, setNewDecisionTitle] = useState('');
+  const [newDecisionAction, setNewDecisionAction] = useState('');
+  const [newDecisionConsequence, setNewDecisionConsequence] = useState('');
 
   // Formulário de Nova Campanha
   const [newTitle, setNewTitle] = useState('');
@@ -72,6 +94,7 @@ export function App() {
     setSelectedCampaign(camp);
     setPendingCheck(null);
     try {
+      // Carrega sessões
       const sessList = await api.getSessions(camp.id);
       setSessions(sessList);
       if (sessList.length > 0) {
@@ -81,13 +104,28 @@ export function App() {
         setCurrentSession(null);
         setMessages([]);
       }
+
+      // Carrega arcos e decisões da campanha
+      loadSideData(camp.id);
     } catch (e) {
       console.error(e);
     }
   };
 
+  const loadSideData = async (campaignId: string) => {
+    try {
+      const [arcsData, decisionsData] = await Promise.all([
+        api.getArcs(campaignId),
+        api.getDecisions(campaignId)
+      ]);
+      setArcs(arcsData);
+      setDecisions(decisionsData);
+    } catch {
+      console.log('Modo offline / sem dados de arcos');
+    }
+  };
+
   const parseRollRequest = (text: string): PendingCheck | null => {
-    // Procura tag: [PEDIR_TESTE: d20 | DT: 14 | Atletismo | Escalar o muro]
     const match = text.match(/\[PEDIR_TESTE:\s*([dD]\d+)\s*\|\s*DT:\s*(\d+)\s*\|\s*([^|]+)\s*\|\s*([^\]]+)\]/i);
     if (match) {
       return {
@@ -105,7 +143,6 @@ export function App() {
       const msgs = await api.getMessages(sessionId);
       setMessages(msgs);
       
-      // Checa se a última mensagem do GM continha um pedido de teste pendente
       const lastGMMsg = [...msgs].reverse().find(m => m.sender === 'GM');
       if (lastGMMsg) {
         const check = parseRollRequest(lastGMMsg.content);
@@ -144,7 +181,7 @@ export function App() {
     
     setMessages(prev => [...prev, optimisticMsg]);
     setIsLoading(true);
-    setPendingCheck(null); // Limpa o teste pendente após executar
+    setPendingCheck(null);
     scrollToBottom();
 
     try {
@@ -155,19 +192,17 @@ export function App() {
       );
       setMessages(prev => [...prev, gmReply]);
 
-      // Detecta se a nova mensagem do Mestre está exigindo uma nova rolagem
       const check = parseRollRequest(gmReply.content);
       if (check) {
         setPendingCheck(check);
       }
       scrollToBottom();
     } catch {
-      // Resposta simulada para modo offline / demonstração
       let mockReply = '';
       if (isDiceRoll) {
-        mockReply = `[SoloForge GM]: O som dos dados ressoa no piso de pedra! Vejo seu resultado para o teste. Diante do esforço, as circunstâncias se desenrolam à sua volta... O que você faz a seguir?`;
+        mockReply = `[SoloForge GM]: O som dos dados ecoa no chão de pedra! Vejo seu resultado para o teste. Diante do esforço, as circunstâncias se desenrolam à sua volta... O que você faz a seguir?`;
       } else {
-        mockReply = `[SoloForge GM]: Diante de sua intenção "${textToSend}", o Mestre analisa suas capacidades e a física do ambiente. O peso da decisão se faz sentir.\n\n[PEDIR_TESTE: d20 | DT: 14 | Reflexos | Agir antes que o alarme soe]`;
+        mockReply = `[SoloForge GM]: Diante de sua intenção "${textToSend}", o Mestre analisa suas capacidades e a física do ambiente. O peso da decisão se faz sentir.\n\n[PEDIR_TESTE: d20 | DT: 14 | Reflexos | Agir antes que o perigo se concretize]`;
       }
 
       const gmMsg: Message = {
@@ -187,7 +222,6 @@ export function App() {
     }
   };
 
-  // Executa uma rolagem oficial (clicando no teste solicitado ou no rolador rápido)
   const rollDice = (sides: number, checkTarget?: PendingCheck) => {
     const roll = Math.floor(Math.random() * sides) + 1;
     let messageText = '';
@@ -207,6 +241,106 @@ export function App() {
     }
 
     handleSendMessage(messageText, true);
+  };
+
+  // Handlers para Arcos Narrativos
+  const handleCreateArc = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCampaign || !newArcTitle.trim()) return;
+
+    try {
+      const created = await api.createArc(selectedCampaign.id, {
+        title: newArcTitle,
+        goal: newArcGoal,
+        status: 'ACTIVE',
+        currentProgress: 'Iniciado recentemente.'
+      });
+      setArcs(prev => [created, ...prev]);
+      setIsNewArcModal(false);
+      setNewArcTitle('');
+      setNewArcGoal('');
+    } catch {
+      const mockArc: StoryArc = {
+        id: 'arc-' + Date.now(),
+        campaignId: selectedCampaign.id,
+        title: newArcTitle,
+        goal: newArcGoal,
+        status: 'ACTIVE',
+        currentProgress: 'Iniciado recentemente.',
+        createdAt: new Date().toISOString()
+      };
+      setArcs(prev => [mockArc, ...prev]);
+      setIsNewArcModal(false);
+      setNewArcTitle('');
+      setNewArcGoal('');
+    }
+  };
+
+  const handleToggleArcStatus = async (arc: StoryArc) => {
+    if (!selectedCampaign) return;
+    const nextStatus = arc.status === 'ACTIVE' ? 'COMPLETED' : 'ACTIVE';
+    try {
+      const updated = await api.updateArcProgress(selectedCampaign.id, arc.id, {
+        status: nextStatus,
+        currentProgress: nextStatus === 'COMPLETED' ? 'Objetivo concluído com sucesso!' : 'Em andamento.'
+      });
+      setArcs(prev => prev.map(a => a.id === arc.id ? updated : a));
+    } catch {
+      setArcs(prev => prev.map(a => a.id === arc.id ? { ...a, status: nextStatus } : a));
+    }
+  };
+
+  const handleDeleteArc = async (arcId: string) => {
+    if (!selectedCampaign) return;
+    try {
+      await api.deleteArc(selectedCampaign.id, arcId);
+      setArcs(prev => prev.filter(a => a.id !== arcId));
+    } catch {
+      setArcs(prev => prev.filter(a => a.id !== arcId));
+    }
+  };
+
+  // Handlers para Decisões do Mundo
+  const handleCreateDecision = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCampaign || !newDecisionTitle.trim() || !newDecisionAction.trim()) return;
+
+    try {
+      const created = await api.createDecision(selectedCampaign.id, {
+        title: newDecisionTitle,
+        decision: newDecisionAction,
+        consequence: newDecisionConsequence
+      });
+      setDecisions(prev => [created, ...prev]);
+      setIsNewDecisionModal(false);
+      setNewDecisionTitle('');
+      setNewDecisionAction('');
+      setNewDecisionConsequence('');
+    } catch {
+      const mockDec: WorldDecision = {
+        id: 'dec-' + Date.now(),
+        campaignId: selectedCampaign.id,
+        title: newDecisionTitle,
+        decision: newDecisionAction,
+        consequence: newDecisionConsequence || 'As repercussões ainda se manifestam pelo reino.',
+        createdAt: new Date().toISOString()
+      };
+      setDecisions(prev => [mockDec, ...prev]);
+      setIsNewDecisionModal(false);
+      setNewDecisionTitle('');
+      setNewDecisionAction('');
+      setNewDecisionConsequence('');
+    }
+  };
+
+  const handleDeleteDecision = async (decisionId: string) => {
+    if (!selectedCampaign) return;
+    try {
+      await api.deleteDecision(selectedCampaign.id, decisionId);
+      setDecisions(prev => prev.filter(d => d.id !== decisionId));
+    } catch {
+      setDecisions(prev => prev.filter(d => d.id !== decisionId));
+    }
   };
 
   const handleCreateCampaign = async (e: React.FormEvent) => {
@@ -275,7 +409,6 @@ export function App() {
     }
   };
 
-  // Limpa tags técnicas ao renderizar o texto para o jogador
   const cleanDisplayContent = (content: string) => {
     return content.replace(/\[PEDIR_TESTE:[^\]]+\]/g, '').trim();
   };
@@ -297,7 +430,7 @@ export function App() {
           </div>
           <button 
             onClick={() => setIsCreatingModal(true)}
-            className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-amber-400 rounded-md transition"
+            className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-amber-400 rounded-md transition cursor-pointer"
             title="Criar Nova Campanha"
           >
             <PlusCircle className="w-5 h-5" />
@@ -314,7 +447,7 @@ export function App() {
               Nenhuma campanha ativa.
               <button 
                 onClick={() => setIsCreatingModal(true)} 
-                className="mt-2 block w-full py-1.5 px-3 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs font-medium transition"
+                className="mt-2 block w-full py-1.5 px-3 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs font-medium transition cursor-pointer"
               >
                 Criar Primeira Crônica
               </button>
@@ -324,7 +457,7 @@ export function App() {
               <button
                 key={camp.id}
                 onClick={() => handleSelectCampaign(camp)}
-                className={`w-full text-left p-3 rounded-lg flex items-center justify-between transition group ${
+                className={`w-full text-left p-3 rounded-lg flex items-center justify-between transition group cursor-pointer ${
                   selectedCampaign?.id === camp.id 
                     ? 'bg-amber-600/15 border border-amber-500/40 text-amber-200' 
                     : 'hover:bg-slate-800/70 text-slate-300 border border-transparent'
@@ -378,7 +511,7 @@ export function App() {
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 text-xs text-amber-400 bg-amber-950/40 border border-amber-800/40 px-2.5 py-1 rounded-full">
               <ShieldAlert className="w-3.5 h-3.5" />
-              Árbitro de Regras Ativo
+              Árbitro & Memória Ativos
             </div>
           </div>
         </header>
@@ -490,7 +623,6 @@ export function App() {
         {/* BARRA DE ROLAGEM RÁPIDA DE DADOS & INPUT BAR */}
         <div className="p-4 border-t border-slate-800 bg-slate-900/50 space-y-3">
           
-          {/* Quick Dice Bar */}
           <div className="flex items-center justify-between max-w-4xl mx-auto text-xs text-slate-400">
             <div className="flex items-center gap-2">
               <span className="font-semibold text-slate-300 flex items-center gap-1">
@@ -502,7 +634,7 @@ export function App() {
                   key={sides}
                   onClick={() => rollDice(sides)}
                   disabled={!selectedCampaign || isLoading}
-                  className="px-2.5 py-1 bg-slate-950 hover:bg-slate-800 disabled:opacity-40 border border-slate-800 hover:border-amber-500/50 rounded text-slate-200 font-mono transition text-[11px]"
+                  className="px-2.5 py-1 bg-slate-950 hover:bg-slate-800 disabled:opacity-40 border border-slate-800 hover:border-amber-500/50 rounded text-slate-200 font-mono transition text-[11px] cursor-pointer"
                 >
                   d{sides}
                 </button>
@@ -542,43 +674,351 @@ export function App() {
         </div>
       </main>
 
-      {/* PAINEL DIREITO: BÍBLIA & REGRAS DA CAMPANHA */}
+      {/* PAINEL DIREITO: ABAS DE BÍBLIA, ARCOS E MEMÓRIA DO MUNDO */}
       {selectedCampaign && (
-        <aside className="w-84 border-l border-slate-800 bg-slate-900/60 backdrop-blur-md flex flex-col overflow-y-auto p-5 space-y-6">
-          <div className="flex items-center gap-2 text-amber-400 font-semibold border-b border-slate-800 pb-3">
-            <BookOpen className="w-5 h-5" />
-            <h3>Bíblia da Crônica</h3>
+        <aside className="w-96 border-l border-slate-800 bg-slate-900/60 backdrop-blur-md flex flex-col overflow-hidden">
+          
+          {/* Cabeçalho de Abas */}
+          <div className="flex border-b border-slate-800 bg-slate-950/50 p-1 gap-1">
+            <button
+              onClick={() => setActiveTab('arcs')}
+              className={`flex-1 py-2 px-2 text-xs font-medium rounded flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                activeTab === 'arcs'
+                  ? 'bg-amber-600/20 text-amber-400 border border-amber-500/40'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+              }`}
+            >
+              <Target className="w-3.5 h-3.5" />
+              <span>Arcos ({arcs.filter(a => a.status === 'ACTIVE').length})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('decisions')}
+              className={`flex-1 py-2 px-2 text-xs font-medium rounded flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                activeTab === 'decisions'
+                  ? 'bg-amber-600/20 text-amber-400 border border-amber-500/40'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+              }`}
+            >
+              <Landmark className="w-3.5 h-3.5" />
+              <span>Mundo ({decisions.length})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('bible')}
+              className={`flex-1 py-2 px-2 text-xs font-medium rounded flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                activeTab === 'bible'
+                  ? 'bg-amber-600/20 text-amber-400 border border-amber-500/40'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+              }`}
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Bíblia</span>
+            </button>
           </div>
 
-          <div className="space-y-4 text-xs">
-            {/* Sistema de Regras & Arbitragem */}
-            <div className="p-3 bg-slate-950/70 rounded-lg border border-amber-500/30">
-              <span className="font-semibold text-amber-300 block mb-1 flex items-center gap-1.5">
-                <ShieldAlert className="w-4 h-4 text-amber-400" />
-                Sistema: {selectedCampaign.system?.name || 'Regras Padrão'}
-              </span>
-              <p className="text-slate-300 leading-relaxed whitespace-pre-line font-mono text-[11px]">
-                {selectedCampaign.system?.coreMechanics || 'Rolagens de D20 e validações contra regras do cenário.'}
-              </p>
-            </div>
+          {/* Conteúdo da Aba */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
 
-            {/* Personagem do Jogador */}
-            <div className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/80">
-              <span className="font-semibold text-slate-300 block mb-1">🧙 Personagem do Jogador (PJ)</span>
-              <p className="text-slate-400 leading-relaxed whitespace-pre-line">
-                {selectedCampaign.bible?.playerCharacter || 'Não especificado ainda.'}
-              </p>
-            </div>
+            {/* ABA 1: ARCOS & MISSÕES */}
+            {activeTab === 'arcs' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-1.5">
+                      <Target className="w-4 h-4 text-amber-500" />
+                      Arcos Narrativos (Quests)
+                    </h3>
+                    <p className="text-[11px] text-slate-400">Objetivos ativos que o Mestre IA guia.</p>
+                  </div>
+                  <button
+                    onClick={() => setIsNewArcModal(true)}
+                    className="p-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs flex items-center gap-1 transition cursor-pointer"
+                    title="Novo Arco"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
 
-            {/* Lore do Mundo */}
-            <div className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/80">
-              <span className="font-semibold text-slate-300 block mb-1">🗺️ Lore do Mundo</span>
-              <p className="text-slate-400 leading-relaxed whitespace-pre-line">
-                {selectedCampaign.bible?.worldLore || 'Sem registros detalhados de lore.'}
-              </p>
-            </div>
+                {arcs.length === 0 ? (
+                  <div className="p-4 text-center border border-dashed border-slate-800 rounded-lg text-xs text-slate-400 space-y-2">
+                    <p>Nenhum arco narrativo registrado ainda.</p>
+                    <button
+                      onClick={() => setIsNewArcModal(true)}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded text-xs transition cursor-pointer"
+                    >
+                      Criar Primeira Quest
+                    </button>
+                  </div>
+                ) : (
+                  arcs.map(arc => {
+                    const isCompleted = arc.status === 'COMPLETED';
+                    return (
+                      <div
+                        key={arc.id}
+                        className={`p-3 rounded-lg border text-xs transition ${
+                          isCompleted
+                            ? 'bg-slate-950/40 border-slate-800/60 opacity-60'
+                            : 'bg-slate-950/80 border-slate-800 hover:border-amber-500/40'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="font-semibold text-slate-200 block text-xs">
+                              {arc.title}
+                            </span>
+                            {arc.goal && (
+                              <p className="text-slate-400 mt-0.5 leading-relaxed text-[11px]">
+                                {arc.goal}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => handleToggleArcStatus(arc)}
+                              className={`p-1 rounded transition cursor-pointer ${
+                                isCompleted
+                                  ? 'text-emerald-400 hover:text-emerald-300'
+                                  : 'text-slate-400 hover:text-emerald-400'
+                              }`}
+                              title={isCompleted ? "Reabrir Quest" : "Concluir Quest"}
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteArc(arc.id)}
+                              className="p-1 text-slate-400 hover:text-rose-400 rounded transition cursor-pointer"
+                              title="Remover Arco"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {arc.currentProgress && (
+                          <div className="mt-2 pt-2 border-t border-slate-800/80 text-[10px] text-amber-300/80 flex items-center justify-between">
+                            <span>Progresso: {arc.currentProgress}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] uppercase font-bold ${
+                              isCompleted ? 'bg-emerald-950 text-emerald-400' : 'bg-amber-950 text-amber-400'
+                            }`}>
+                              {arc.status}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+
+            {/* ABA 2: DECISÕES DO MUNDO (MEMÓRIA PERMANENTE) */}
+            {activeTab === 'decisions' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-1.5">
+                      <Landmark className="w-4 h-4 text-amber-500" />
+                      Memória do Mundo
+                    </h3>
+                    <p className="text-[11px] text-slate-400">Marcas e consequências que o Mestre recorda.</p>
+                  </div>
+                  <button
+                    onClick={() => setIsNewDecisionModal(true)}
+                    className="p-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs flex items-center gap-1 transition cursor-pointer"
+                    title="Registrar Decisão"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {decisions.length === 0 ? (
+                  <div className="p-4 text-center border border-dashed border-slate-800 rounded-lg text-xs text-slate-400 space-y-2">
+                    <p>O mundo ainda aguarda as suas escolhas históricas.</p>
+                    <button
+                      onClick={() => setIsNewDecisionModal(true)}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded text-xs transition cursor-pointer"
+                    >
+                      Registrar Escolha Importante
+                    </button>
+                  </div>
+                ) : (
+                  decisions.map(dec => (
+                    <div
+                      key={dec.id}
+                      className="p-3 bg-slate-950/80 rounded-lg border border-slate-800 hover:border-amber-500/40 text-xs transition space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-amber-300 text-xs">{dec.title}</span>
+                        <button
+                          onClick={() => handleDeleteDecision(dec.id)}
+                          className="p-1 text-slate-400 hover:text-rose-400 rounded transition cursor-pointer"
+                          title="Remover Decisão"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <p className="text-slate-300 leading-relaxed text-[11px]">
+                        <strong className="text-slate-400">Ato:</strong> {dec.decision}
+                      </p>
+
+                      {dec.consequence && (
+                        <p className="text-amber-200/90 leading-relaxed text-[11px] italic bg-amber-950/30 p-2 rounded border border-amber-900/30">
+                          <strong className="text-amber-400">Impacto:</strong> {dec.consequence}
+                        </p>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* ABA 3: BÍBLIA & REGRAS */}
+            {activeTab === 'bible' && (
+              <div className="space-y-4 text-xs">
+                {/* Sistema de Regras & Arbitragem */}
+                <div className="p-3 bg-slate-950/70 rounded-lg border border-amber-500/30">
+                  <span className="font-semibold text-amber-300 block mb-1 flex items-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4 text-amber-400" />
+                    Sistema: {selectedCampaign.system?.name || 'Regras Padrão'}
+                  </span>
+                  <p className="text-slate-300 leading-relaxed whitespace-pre-line font-mono text-[11px]">
+                    {selectedCampaign.system?.coreMechanics || 'Rolagens de D20 e validações contra regras do cenário.'}
+                  </p>
+                </div>
+
+                {/* Personagem do Jogador */}
+                <div className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/80">
+                  <span className="font-semibold text-slate-300 block mb-1">🧙 Personagem do Jogador (PJ)</span>
+                  <p className="text-slate-400 leading-relaxed whitespace-pre-line">
+                    {selectedCampaign.bible?.playerCharacter || 'Não especificado ainda.'}
+                  </p>
+                </div>
+
+                {/* Lore do Mundo */}
+                <div className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/80">
+                  <span className="font-semibold text-slate-300 block mb-1">🗺️ Lore do Mundo</span>
+                  <p className="text-slate-400 leading-relaxed whitespace-pre-line">
+                    {selectedCampaign.bible?.worldLore || 'Sem registros detalhados de lore.'}
+                  </p>
+                </div>
+              </div>
+            )}
+
           </div>
         </aside>
+      )}
+
+      {/* MODAL: CRIAR NOVO ARCO */}
+      {isNewArcModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-xl p-5 shadow-2xl">
+            <h3 className="text-base font-bold text-amber-400 flex items-center gap-2 mb-3">
+              <Target className="w-4 h-4" />
+              Novo Arco Narrativo / Missão
+            </h3>
+            <form onSubmit={handleCreateArc} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Título da Quest *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: O Resgate do Mensageiro"
+                  value={newArcTitle}
+                  onChange={e => setNewArcTitle(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Objetivo / Meta</label>
+                <textarea
+                  rows={2}
+                  placeholder="Ex: Localizar o mensageiro capturado pelos bandidos nas colinas."
+                  value={newArcGoal}
+                  onChange={e => setNewArcGoal(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsNewArcModal(false)}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded font-medium cursor-pointer"
+                >
+                  Registrar Arco
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: REGISTRAR DECISÃO DO MUNDO */}
+      {isNewDecisionModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-xl p-5 shadow-2xl">
+            <h3 className="text-base font-bold text-amber-400 flex items-center gap-2 mb-3">
+              <Landmark className="w-4 h-4" />
+              Registrar Marco no Mundo
+            </h3>
+            <form onSubmit={handleCreateDecision} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Título do Evento *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Aliança com os Rebeldes de Ferro"
+                  value={newDecisionTitle}
+                  onChange={e => setNewDecisionTitle(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Decisão Tomada pelo PJ *</label>
+                <textarea
+                  rows={2}
+                  required
+                  placeholder="Ex: O herói recusou o suborno do barão e entregou os documentos aos rebeldes."
+                  value={newDecisionAction}
+                  onChange={e => setNewDecisionAction(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Consequência / Impacto no Cenário</label>
+                <textarea
+                  rows={2}
+                  placeholder="Ex: Os guardas da cidade agora estão hostis, mas os rebeldes oferecem abrigo seguro."
+                  value={newDecisionConsequence}
+                  onChange={e => setNewDecisionConsequence(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsNewDecisionModal(false)}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded font-medium cursor-pointer"
+                >
+                  Gravar na Memória
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* MODAL DE CRIAÇÃO DE CAMPANHA */}
@@ -592,7 +1032,7 @@ export function App() {
               </h3>
               <button 
                 onClick={() => setIsCreatingModal(false)}
-                className="text-slate-400 hover:text-slate-200"
+                className="text-slate-400 hover:text-slate-200 cursor-pointer"
               >
                 ✕
               </button>
@@ -669,13 +1109,13 @@ export function App() {
                 <button
                   type="button"
                   onClick={() => setIsCreatingModal(false)}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded"
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded font-medium flex items-center gap-1.5"
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded font-medium flex items-center gap-1.5 cursor-pointer"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   Iniciar Aventura

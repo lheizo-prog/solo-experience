@@ -4,7 +4,7 @@
 
 ---
 
-## 📊 Status Atual (O que já temos)
+## 📊 Status Atual (Atualizado)
 
 | Camada / Feature | Status | Detalhes |
 |---|:---:|---|
@@ -12,75 +12,42 @@
 | **Schema & Entidades** | ✅ **Concluído** | Campaign, Bible, System, Session, Message, NPC, WorldDecision, StoryArc. |
 | **CRUD de Campanha** | ✅ **Concluído** | Criação de campanha, inicialização da Bíblia e do Sistema de Regras. |
 | **Chat Básico & Gemini** | ✅ **Concluído** | Envio de mensagens com injeção de contexto mestre e histórico de mensagens. |
+| **Árbitro de Regras & Rolagem de Dados** | ✅ **Concluído** | Validação de ações contra o sistema, DT prévia, tag `[PEDIR_TESTE]`, banner de rolagem e dados rápidos (d4 a d100). |
+| **Arcos Narrativos & Memória do Mundo (Etapa 2)** | ✅ **Concluído** | Endpoints de Arcos e Decisões, abas no painel lateral direito, modal de criação rápida, toggle de conclusão e injeção no prompt do Mestre. |
 
 ---
 
-## 🎯 As 4 Etapas Faltantes para o MVP Completo
-
-Para que o SoloForge seja um **verdadeiro RPG Solo com IA persistente** (e não apenas um chat comum), restam 4 entregas essenciais:
+## 🎯 As 2 Etapas Restantes para Fechar o MVP
 
 ```mermaid
 graph TD
-    A[Etapa 1: Rolagem de Dados no Chat] --> B[Etapa 2: Memória & Arcos Narrativos]
-    B --> C[Etapa 3: Cristalização de NPCs]
-    C --> D[Etapa 4: Resumo Automático & Polimento UX]
+    A[Etapa 3: Cristalização de NPCs] --> B[Etapa 4: Resumos de Sessão & Próximo Ato]
 ```
 
 ---
 
-### 🎲 Etapa 1 — Rolagem de Dados Interativa no Chat (D4, D6, D8, D10, D12, D20, D100)
-> *Sem dados e aleatoriedade, não há RPG de mesa!*
+### 👥 Etapa 3 — Sistema de Cristalização de NPCs
+> *O grande diferencial: transformar personagens passageiros gerados pelo Gemini em figuras persistentes da crônica.*
 
 - **O que falta**:
-  1. Componente na barra inferior do chat com botões rápidos de dados ou comando (ex: `/roll 1d20+3`).
-  2. Mensagem do tipo `SYSTEM` no chat renderizada com design especial de dado (resultado com sucesso/falha visual).
-  3. Envio do resultado da rolagem para o contexto da próxima resposta do Gemini para que o Mestre reaja ao valor rolado.
+  1. **API de NPCs no Backend**:
+     - `GET /api/campaigns/{id}/npcs` (Listar NPCs da crônica).
+     - `POST /api/campaigns/{id}/npcs` (Criar ou salvar NPC com personalidade e memória).
+     - `PATCH /api/npcs/{id}/crystallize` (Alternar entre passageiro e cristalizado).
+  2. **Interface de NPCs (Frontend)**:
+     - Adicionar a aba **[NPCs]** no painel direito ao lado de Arcos, Mundo e Bíblia.
+     - Botão de ação rápida ou modal para salvar um NPC citado na narrativa.
+  3. **Efeito no Jogo**:
+     - NPCs com `isCrystallized = true` já são injetados automaticamente na memória contínua do Mestre IA pelo `ContextBuilderService`.
 
 ---
 
-### 🧠 Etapa 2 — Registro de Decisões & Arcos Narrativos (Fase 2 do Roadmap)
-> *Garantir que a IA lembre das ações passadas sem estourar limite de contexto.*
+### 📜 Etapa 4 — Resumos Automáticos de Sessão & Avanço de Ato
+> *Permite campanhas longas divididas em episódios (Ato I, Ato II, etc.) de forma leve e organizada.*
 
 - **O que falta**:
-  1. **Endpoints de Arcos e Decisões**:
-     - `POST /api/campaigns/{id}/arcs` (Criar/atualizar progresso de missões)
-     - `POST /api/campaigns/{id}/decisions` (Registrar escolhas e consequências que mudaram o mundo)
-  2. **Abas no Painel Lateral**:
-     - Adicionar abas na lateral direita do frontend: **[Bíblia]**, **[Missões/Arcos]**, **[Memória do Mundo]**.
-  3. **Edição Rápida**:
-     - Permitir ao jogador adicionar ou editar um marco histórico diretamente na tela durante a partida.
-
----
-
-### 👥 Etapa 3 — Sistema de Cristalização de NPCs (Fase 3 do Roadmap)
-> *O diferencial do SoloForge: NPCs que surgem na conversa podem virar personagens fixos.*
-
-- **O que falta**:
-  1. **API de NPCs**:
-     - `GET /api/campaigns/{id}/npcs`
-     - `POST /api/campaigns/{id}/npcs` (Criar manualmente ou salvar NPC)
-     - `PUT /api/npcs/{id}/crystallize` (Alternar entre passageiro e cristalizado)
-  2. **Botão de Ação Rápida no Chat**:
-     - O jogador pode clicar com botão direito ou num botão de ação em um trecho da fala do Mestre: *"Cristalizar NPC"* (preenche nome e papel do personagem).
-  3. **Injeção Ativa**:
-     - O `ContextBuilderService` já está pronto para injetar NPCs cristalizados! Basta alimentá-lo pelo frontend.
-
----
-
-### 📜 Etapa 4 — Fechamento de Sessão & Resumos Automáticos (Fase 4 do Roadmap)
-> *Permitir jogar várias sessões sem perder o fio da meada.*
-
-- **O que falta**:
-  1. Botão **"Finalizar Sessão / Criar Próximo Ato"**:
-     - Chama endpoint no backend que solicita ao Gemini: *"Gere um resumo em 3 tópicos desta sessão para registrar no diário da crônica"*.
-     - Grava o resumo no campo `Session.summary`.
-     - Inicia a próxima sessão limpa (Ato II), injetando o resumo anterior no contexto em vez de reenviar 50 mensagens antigas.
-
----
-
-## ⏱️ Ordem de Execução Recomendada
-
-1. **Etapa 1 (Rolador de Dados)**: Impacto imediato na jogabilidade (1 a 2 horas).
-2. **Etapa 2 (Abas laterais de Arcos e Decisões)**: Torna a crônica viva e editável (2 horas).
-3. **Etapa 3 (Painel e Cristalização de NPCs)**: Completa a proposta única de valor (2 a 3 horas).
-4. **Etapa 4 (Resumo de Sessão / Próximo Ato)**: Fecha a experiência completa de ciclo de jogo (1 a 2 horas).
+  1. **Endpoint de Fechamento**:
+     - `POST /api/sessions/{id}/conclude`: Dispara um prompt ao Gemini solicitando um resumo conciso dos fatos da sessão e salva no `Session.summary`.
+  2. **Criação do Próximo Ato**:
+     - Botão *"Encerrar Sessão & Iniciar Próximo Ato"*.
+     - O chat inicia limpo, carregando o resumo das sessões anteriores no contexto da nova sessão em vez de reenviar todo o histórico antigo.

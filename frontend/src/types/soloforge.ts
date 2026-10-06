@@ -41,3 +41,24 @@ export interface Message {
   content: string;
   createdAt: string;
 }
+
+export interface StoryArc {
+  id: string;
+  campaignId: string;
+  title: string;
+  goal?: string;
+  status: 'ACTIVE' | 'COMPLETED' | 'FAILED' | 'PAUSED';
+  currentProgress?: string;
+  createdAt: string;
+}
+
+export interface WorldDecision {
+  id: string;
+  campaignId: string;
+  title: string;
+  decision: string;
+  consequence?: string;
+  createdAt: string;
+}
+
+

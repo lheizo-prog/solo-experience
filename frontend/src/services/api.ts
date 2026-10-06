@@ -1,4 +1,4 @@
-import type { Campaign, Session, Message } from '../types/soloforge';
+import type { Campaign, Session, Message, StoryArc, WorldDecision } from '../types/soloforge';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -51,6 +51,77 @@ export const api = {
     });
     if (!res.ok) throw new Error('Falha ao enviar mensagem');
     return res.json();
+  },
+
+  // === ARCOS NARRATIVOS (QUESTS) ===
+  async getArcs(campaignId: string): Promise<StoryArc[]> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/arcs`);
+    if (!res.ok) throw new Error('Falha ao buscar arcos');
+    return res.json();
+  },
+
+  async createArc(campaignId: string, data: {
+    title: string;
+    goal?: string;
+    status?: string;
+    currentProgress?: string;
+  }): Promise<StoryArc> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/arcs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Falha ao criar arco');
+    return res.json();
+  },
+
+  async updateArcProgress(campaignId: string, arcId: string, data: {
+    status?: string;
+    currentProgress?: string;
+  }): Promise<StoryArc> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/arcs/${arcId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Falha ao atualizar arco');
+    return res.json();
+  },
+
+  async deleteArc(campaignId: string, arcId: string): Promise<void> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/arcs/${arcId}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) throw new Error('Falha ao deletar arco');
+  },
+
+  // === DECISÕES DO MUNDO (MEMÓRIA) ===
+  async getDecisions(campaignId: string): Promise<WorldDecision[]> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/decisions`);
+    if (!res.ok) throw new Error('Falha ao buscar decisões');
+    return res.json();
+  },
+
+  async createDecision(campaignId: string, data: {
+    title: string;
+    decision: string;
+    consequence?: string;
+  }): Promise<WorldDecision> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/decisions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Falha ao registrar decisão');
+    return res.json();
+  },
+
+  async deleteDecision(campaignId: string, decisionId: string): Promise<void> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/decisions/${decisionId}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) throw new Error('Falha ao deletar decisão');
   }
 };
+
 
