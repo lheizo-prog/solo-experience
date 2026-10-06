@@ -61,4 +61,18 @@ export interface WorldDecision {
   createdAt: string;
 }
 
+export interface Npc {
+  id: string;
+  campaignId: string;
+  name: string;
+  role?: string;
+  description?: string;
+  personality?: string;
+  memory?: string;
+  isCrystallized: boolean;
+  createdAt: string;
+}
+
+
+
 

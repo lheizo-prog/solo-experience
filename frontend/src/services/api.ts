@@ -1,4 +1,4 @@
-import type { Campaign, Session, Message, StoryArc, WorldDecision } from '../types/soloforge';
+import type { Campaign, Session, Message, StoryArc, WorldDecision, Npc } from '../types/soloforge';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -121,7 +121,47 @@ export const api = {
       method: 'DELETE'
     });
     if (!res.ok) throw new Error('Falha ao deletar decisão');
+  },
+
+  // === NPCS (CRISTALIZAÇÃO & PERSISTÊNCIA) ===
+  async getNpcs(campaignId: string): Promise<Npc[]> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/npcs`);
+    if (!res.ok) throw new Error('Falha ao buscar NPCs');
+    return res.json();
+  },
+
+  async createNpc(campaignId: string, data: {
+    name: string;
+    role?: string;
+    description?: string;
+    personality?: string;
+    memory?: string;
+    isCrystallized?: boolean;
+  }): Promise<Npc> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/npcs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Falha ao criar NPC');
+    return res.json();
+  },
+
+  async toggleCrystallizeNpc(campaignId: string, npcId: string): Promise<Npc> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/npcs/${npcId}/crystallize`, {
+      method: 'PATCH'
+    });
+    if (!res.ok) throw new Error('Falha ao alterar cristalização do NPC');
+    return res.json();
+  },
+
+  async deleteNpc(campaignId: string, npcId: string): Promise<void> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/npcs/${npcId}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) throw new Error('Falha ao deletar NPC');
   }
 };
+
 
 

@@ -14,40 +14,25 @@
 | **Chat Básico & Gemini** | ✅ **Concluído** | Envio de mensagens com injeção de contexto mestre e histórico de mensagens. |
 | **Árbitro de Regras & Rolagem de Dados** | ✅ **Concluído** | Validação de ações contra o sistema, DT prévia, tag `[PEDIR_TESTE]`, banner de rolagem e dados rápidos (d4 a d100). |
 | **Arcos Narrativos & Memória do Mundo (Etapa 2)** | ✅ **Concluído** | Endpoints de Arcos e Decisões, abas no painel lateral direito, modal de criação rápida, toggle de conclusão e injeção no prompt do Mestre. |
+| **Cristalização de NPCs (Etapa 3)** | ✅ **Concluído** | Endpoints completos de NPCs, alternância entre passageiro e cristalizado com badge visual, modal de cadastro e injeção automática no prompt contínuo do Gemini. |
 
 ---
 
-## 🎯 As 2 Etapas Restantes para Fechar o MVP
+## 🎯 A Última Etapa Restante para Fechar o MVP
 
 ```mermaid
 graph TD
-    A[Etapa 3: Cristalização de NPCs] --> B[Etapa 4: Resumos de Sessão & Próximo Ato]
+    A[Etapa 4: Resumos Automáticos de Sessão & Próximo Ato]
 ```
 
 ---
 
-### 👥 Etapa 3 — Sistema de Cristalização de NPCs
-> *O grande diferencial: transformar personagens passageiros gerados pelo Gemini em figuras persistentes da crônica.*
-
-- **O que falta**:
-  1. **API de NPCs no Backend**:
-     - `GET /api/campaigns/{id}/npcs` (Listar NPCs da crônica).
-     - `POST /api/campaigns/{id}/npcs` (Criar ou salvar NPC com personalidade e memória).
-     - `PATCH /api/npcs/{id}/crystallize` (Alternar entre passageiro e cristalizado).
-  2. **Interface de NPCs (Frontend)**:
-     - Adicionar a aba **[NPCs]** no painel direito ao lado de Arcos, Mundo e Bíblia.
-     - Botão de ação rápida ou modal para salvar um NPC citado na narrativa.
-  3. **Efeito no Jogo**:
-     - NPCs com `isCrystallized = true` já são injetados automaticamente na memória contínua do Mestre IA pelo `ContextBuilderService`.
-
----
-
 ### 📜 Etapa 4 — Resumos Automáticos de Sessão & Avanço de Ato
-> *Permite campanhas longas divididas em episódios (Ato I, Ato II, etc.) de forma leve e organizada.*
+> *Permite campanhas longas divididas em episódios (Ato I, Ato II, etc.) de forma leve e organizada, economizando tokens e mantendo a coerência narrativa.*
 
 - **O que falta**:
-  1. **Endpoint de Fechamento**:
-     - `POST /api/sessions/{id}/conclude`: Dispara um prompt ao Gemini solicitando um resumo conciso dos fatos da sessão e salva no `Session.summary`.
-  2. **Criação do Próximo Ato**:
-     - Botão *"Encerrar Sessão & Iniciar Próximo Ato"*.
-     - O chat inicia limpo, carregando o resumo das sessões anteriores no contexto da nova sessão em vez de reenviar todo o histórico antigo.
+  1. **Endpoint de Conclusão de Sessão**:
+     - `POST /api/sessions/{id}/conclude`: Dispara um prompt ao Gemini solicitando um resumo conciso dos fatos da sessão e grava no `Session.summary`.
+  2. **Criação e Troca de Atos**:
+     - Botão *"Encerrar Sessão & Iniciar Próximo Ato"* na interface.
+     - Carrega o resumo das sessões anteriores no contexto da nova sessão limpa em vez de reenviar todo o histórico antigo.
