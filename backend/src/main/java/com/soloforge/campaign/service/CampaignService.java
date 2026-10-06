@@ -44,11 +44,17 @@ public class CampaignService {
 
         CampaignSystem system = CampaignSystem.builder()
                 .campaign(campaign)
-                .name(request.getSystemName() != null ? request.getSystemName() : "SoloForge Custom Rules")
-                .coreMechanics(request.getCoreMechanics())
-                .statsAndAttributes(request.getStatsAndAttributes())
-                .rollInstructions(request.getRollInstructions())
+                .name(request.getSystemName() != null ? request.getSystemName() : "SoloForge D20 Narrativo")
+                .coreMechanics(request.getCoreMechanics() != null ? request.getCoreMechanics() : 
+                        "1. Toda ação com risco ou oposição requer rolagem de dados (d20).\n" +
+                        "2. O Mestre sempre estipula previamente a Dificuldade do Teste (DT): Muito Fácil (5), Fácil (10), Médio (15), Difícil (20), Quase Impossível (25).\n" +
+                        "3. Ações que desrespeitam a física do mundo, o inventário atual ou as fraquezas do PJ são imediatamente barradas ou alertadas pelo Mestre.")
+                .statsAndAttributes(request.getStatsAndAttributes() != null ? request.getStatsAndAttributes() :
+                        "Atributos (modificadores de -1 a +5): Força, Destreza, Constituição, Inteligência, Sabedoria, Carisma.")
+                .rollInstructions(request.getRollInstructions() != null ? request.getRollInstructions() :
+                        "Quando uma ação incerta ocorrer, o Mestre emite a tag `[PEDIR_TESTE: d20 | DT: X | Atributo | Motivo]`. O jogador clica no botão de rolagem gerado pela interface e o Mestre julga o desfecho.")
                 .build();
+
 
         campaign.setBible(bible);
         campaign.setSystem(system);

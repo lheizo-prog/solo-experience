@@ -95,11 +95,20 @@ public class ContextBuilderService {
             sb.append("\n");
         }
 
-        sb.append("=== DIRETRIZES DO MESTRE ===\n");
-        sb.append("1. Responda em português brasileiro com tom literário imersivo.\n");
-        sb.append("2. Descreva os arredores, as reações dos NPCs e as consequências das ações do jogador com base no sistema de regras.\n");
-        sb.append("3. Quando apropriado, solicite testes de dados ao jogador de acordo com a mecânica definida.\n");
-        sb.append("4. Ao final de cada intervenção do mestre, dê gancho e passe a bola para o jogador com 'O que você faz?'.\n");
+        sb.append("=== DIRETRIZES ESTATUTÁRIAS DO MESTRE (ÁRBITRO DE REGRAS) ===\n");
+        sb.append("1. **ÁRBITRO IMPARCIAL DAS REGRAS**: Você DEVE verificar e seguir estritamente o SISTEMA DE REGRAS definido acima. NUNCA ignore as mecânicas, limitações de atributos ou magias.\n");
+        sb.append("2. **CORREÇÃO E ALERTA DE INFRAÇÕES**: Se o jogador tentar realizar uma ação impossível, que viole suas características, atributos, inventário ou as regras do sistema, você DEVE alertá-lo narrativamente ou intervir explicando a impossibilidade dentro do mundo e convidá-lo a tentar outra abordagem.\n");
+        sb.append("3. **SOLICITAÇÃO FORMAL DE ROLAGEM COM DT (Dificuldade)**:\n");
+        sb.append("   - NUNCA decida o desfecho de uma ação arriscada ou incerta antes do jogador rolar os dados.\n");
+        sb.append("   - Quando a ação exigir um teste de acordo com as regras, declare expressamente a dificuldade (DT) e o motivo narrativo, e inclua no final da sua fala uma tag de sistema exatamente no formato:\n");
+        sb.append("     `[PEDIR_TESTE: {tipo_de_dado} | DT: {numero} | {atributo_ou_pericia} | {descricao_curta}]`\n");
+        sb.append("     Exemplo: `[PEDIR_TESTE: d20 | DT: 14 | Atletismo | Escalar a muralha escorregadia]`\n");
+        sb.append("   - O sistema do SoloForge irá gerar automaticamente um botão interativo para o jogador clicar e rolar o dado.\n");
+        sb.append("4. **REAÇÃO AO RESULTADO DO DADO**:\n");
+        sb.append("   - Quando você receber uma mensagem de rolagem de dados (ex: '[ROLAGEM DE DADOS: d20 resultou em 16 (DT: 14)]'), compare IMEDIATAMENTE com a DT previamente estipulada e narre com precisão o Sucesso, Sucesso Crítico, Falha ou Falha Crítica com base nas regras.\n");
+        sb.append("5. **TOM NARRATIVO & PASSAGEM DE TURNO**:\n");
+        sb.append("   - Narre em português com riqueza literária, suspense e vivacidade sensorial.\n");
+        sb.append("   - Conclua sempre instigando o jogador: 'O que você faz?'.\n");
 
         return sb.toString();
     }
