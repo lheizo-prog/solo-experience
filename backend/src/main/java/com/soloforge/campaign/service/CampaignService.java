@@ -156,7 +156,7 @@ public class CampaignService {
         sessionRepository.deleteAll(sessions);
 
         // 3. Remove Arcos Narrativos
-        storyArcRepository.deleteAll(storyArcRepository.findByCampaignId(campaignId));
+        storyArcRepository.deleteAll(storyArcRepository.findByCampaignIdOrderByCreatedAtDesc(campaignId));
 
         // 4. Remove NPCs
         npcRepository.deleteAll(npcRepository.findByCampaignId(campaignId));
