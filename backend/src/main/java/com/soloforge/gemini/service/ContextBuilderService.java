@@ -166,8 +166,9 @@ public class ContextBuilderService {
         sb.append("   - Quando a ação exigir um teste de acordo com as regras, declare expressamente a dificuldade (DT) e o motivo narrativo, e inclua no final da sua fala uma tag de sistema exatamente no formato:\n");
         sb.append("     `[PEDIR_TESTE: {tipo_de_dado} | DT: {numero} | {atributo_ou_pericia} | {descricao_curta}]`\n");
         sb.append("     Exemplo: `[PEDIR_TESTE: d20 | DT: 14 | Atletismo | Escalar a muralha escorregadia]`\n");
-        sb.append("4. **REAÇÃO AO RESULTADO DO DADO**:\n");
-        sb.append("   - Quando você receber uma mensagem de rolagem de dados (ex: '[ROLAGEM DE DADOS: d20 resultou em 16 (DT: 14)]'), compare IMEDIATAMENTE com a DT previamente estipulada e narre com precisão o Sucesso, Sucesso Crítico, Falha ou Falha Crítica com base nas regras.\n");
+        sb.append("4. **REAÇÃO AO RESULTADO DO DADO (BÔNUS, VANTAGEM/DESVANTAGEM & DANO)**:\n");
+        sb.append("   - O jogador pode rolar dados com bônus de atributo/perícia (ex: 1d20 + 3), vantagem (2d20 maior), desvantagem (2d20 menor) ou múltiplos dados de dano (ex: 2d6 + 3).\n");
+        sb.append("   - Compare o Total Final obtido contra a DT exigida e narre o Sucesso, Falha ou Danos com base nas regras. Use o espaço de <pensamento> livremente para pesar esses cálculos antes de escrever a narrativa.\n");
         sb.append("5. **CONCISÃO NARRATIVA & AGÊNCIA DO JOGADOR (EVITE HIPERDETALHES)**:\n");
         sb.append("   - Narre em português em 2ª pessoa com vivacidade sensorial, mas seja OBJETIVO e CONCISO (2 a 4 parágrafos focados na ação presente).\n");
         sb.append("   - Evite divagações poéticas excessivas ou descrições hiperbólicas de cada micro-objeto. Mantenha a história em movimento.\n");

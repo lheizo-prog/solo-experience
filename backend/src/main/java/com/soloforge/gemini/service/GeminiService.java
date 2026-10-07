@@ -160,18 +160,24 @@ public class GeminiService {
         }
         requestBody.put("contents", contents);
 
-        // Generation config (calibração de criatividade e limite confortável de 4096 tokens)
-        requestBody.put("generationConfig", Map.of(
-                "temperature", 0.8,
-                "topP", 0.95,
-                "topK", 40,
-                "maxOutputTokens", 4096
-        ));
+        // Generation config (calibração de criatividade e teto expandido de 8192 tokens com pensamento irrestrito)
+        Map<String, Object> baseGenConfig = new HashMap<>();
+        baseGenConfig.put("temperature", 0.8);
+        baseGenConfig.put("topP", 0.95);
+        baseGenConfig.put("topK", 40);
+        baseGenConfig.put("maxOutputTokens", 8192);
 
         Exception lastException = null;
         for (String modelToTry : getCandidateModels()) {
             try {
                 String endpoint = String.format("%s/%s:generateContent?key=%s", baseUrl, modelToTry, apiKey);
+
+                Map<String, Object> currentGenConfig = new HashMap<>(baseGenConfig);
+                // Permite raciocínio profundo e ilimitado para modelos compatíveis com thinking
+                if (modelToTry.contains("2.5") || modelToTry.contains("2.0")) {
+                    currentGenConfig.put("thinkingConfig", Map.of("thinkingBudget", -1));
+                }
+                requestBody.put("generationConfig", currentGenConfig);
 
                 String responseJson = restClient.post()
                         .uri(endpoint)
