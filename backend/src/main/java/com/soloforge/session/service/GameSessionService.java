@@ -116,10 +116,13 @@ public class GameSessionService {
                 .build();
         messageRepository.save(playerMsg);
 
-        // 2. Montar histórico para a IA
+        // 2. Montar histórico para a IA com janela deslizante (últimas 14 mensagens para evitar perda de atenção)
         List<Message> history = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
+        int startIndex = Math.max(0, history.size() - 14);
+        List<Message> recentHistory = history.subList(startIndex, history.size());
+
         List<Map<String, String>> formattedHistory = new ArrayList<>();
-        for (Message msg : history) {
+        for (Message msg : recentHistory) {
             formattedHistory.add(Map.of(
                     "role", "PLAYER".equalsIgnoreCase(msg.getSender()) ? "PLAYER" : "MODEL",
                     "text", (msg.getSenderName() != null ? msg.getSenderName() + ": " : "") + msg.getContent()
@@ -161,9 +164,12 @@ public class GameSessionService {
             history.remove(history.size() - 1);
         }
 
-        // Montar histórico restante
+        // Montar histórico restante com janela deslizante (últimas 14 mensagens)
+        int startIndex = Math.max(0, history.size() - 14);
+        List<Message> recentHistory = history.subList(startIndex, history.size());
+
         List<Map<String, String>> formattedHistory = new ArrayList<>();
-        for (Message msg : history) {
+        for (Message msg : recentHistory) {
             formattedHistory.add(Map.of(
                     "role", "PLAYER".equalsIgnoreCase(msg.getSender()) ? "PLAYER" : "MODEL",
                     "text", (msg.getSenderName() != null ? msg.getSenderName() + ": " : "") + msg.getContent()

@@ -43,7 +43,8 @@ import {
   ChevronUp,
   Search,
   Copy,
-  Check
+  Check,
+  Lightbulb
 } from 'lucide-react';
 
 import { LoginScreen } from './components/LoginScreen';
@@ -128,6 +129,20 @@ export function App() {
 
   // Feedback de Cópia (ID do item copiado)
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Dicas de Ação sob Demanda (ID da mensagem com dicas expandidas)
+  const [expandedActionHints, setExpandedActionHints] = useState<Record<string, boolean>>({});
+
+  const toggleActionHints = (msgId: string) => {
+    setExpandedActionHints(prev => ({ ...prev, [msgId]: !prev[msgId] }));
+  };
+
+  const parseActionHints = (content: string): string[] => {
+    if (!content) return [];
+    const match = content.match(/\[DICAS_DE_ACAO:\s*([^\]]+)\]/i);
+    if (!match) return [];
+    return match[1].split('|').map(s => s.trim()).filter(Boolean);
+  };
 
   const handleCopyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -1157,8 +1172,9 @@ export function App() {
       }
     }
 
-    // 3. Remove tags internas de teste mecânico da visualização do balão de texto (pois viram botão interativo)
+    // 3. Remove tags internas de teste mecânico e de dicas de ação da visualização do balão de texto (viram componentes interativos)
     cleaned = cleaned.replace(/\[PEDIR_TESTE:[^\]]+\]/g, '').trim();
+    cleaned = cleaned.replace(/\[DICAS_DE_ACAO:[^\]]+\]/g, '').trim();
 
     // 4. Corte de cabeçalhos de rascunho (*Drafting response:*, *Cena:*, etc.)
     const startMatch = cleaned.match(/(?:^\s*\*+(?:Drafting response:?|Draft:?|Cena:?|A Cena:?)\*+|\b(?:Drafting response|Cena):)\s*\n?/im);
@@ -1703,19 +1719,76 @@ export function App() {
                           {cleanDisplayContent(msg.content)}
                         </div>
 
-                        {/* Botão de Regenerar Resposta na última mensagem do GM */}
-                        {isLastGmMessage && (
-                          <div className="mt-1.5 flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={handleRegenerateLastMessage}
-                              disabled={isRegenerating || isLoading}
-                              className="px-2.5 py-1 bg-slate-900/90 hover:bg-slate-800 disabled:opacity-40 text-amber-400 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 rounded-md text-[11px] font-medium flex items-center gap-1.5 transition cursor-pointer"
-                              title="Solicita ao Mestre uma nova narração para a ação anterior"
-                            >
-                              <RotateCcw className={`w-3 h-3 ${isRegenerating ? 'animate-spin' : ''}`} />
-                              <span>{isRegenerating ? 'Consultando novamente...' : 'Tentar outra resposta'}</span>
-                            </button>
+                        {/* Ações e Dicas da Mensagem do Mestre */}
+                        {!isPlayer && !isSystem && (
+                          <div className="mt-1.5 flex flex-col gap-1.5 w-full">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {/* Botão Opcional de Dicas de Ação (Apenas se o jogador quiser abrir) */}
+                              {(() => {
+                                const hints = parseActionHints(msg.content);
+                                const isExpanded = !!expandedActionHints[msg.id];
+                                if (hints.length === 0) return null;
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleActionHints(msg.id)}
+                                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium flex items-center gap-1.5 transition cursor-pointer border ${
+                                      isExpanded
+                                        ? 'bg-amber-950/60 text-amber-300 border-amber-500/40'
+                                        : 'bg-slate-900/90 hover:bg-slate-800 text-slate-400 hover:text-amber-300 border-slate-800'
+                                    }`}
+                                    title="Ver sugestões de ações possíveis para esta cena (opcional)"
+                                  >
+                                    <Lightbulb className="w-3 h-3 text-amber-400" />
+                                    <span>{isExpanded ? 'Ocultar Dicas de Ação' : '💡 Ideias de Ação'}</span>
+                                    {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3 text-slate-500" />}
+                                  </button>
+                                );
+                              })()}
+
+                              {/* Botão de Regenerar Resposta na última mensagem do GM */}
+                              {isLastGmMessage && (
+                                <button
+                                  type="button"
+                                  onClick={handleRegenerateLastMessage}
+                                  disabled={isRegenerating || isLoading}
+                                  className="px-2.5 py-1 bg-slate-900/90 hover:bg-slate-800 disabled:opacity-40 text-amber-400 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 rounded-md text-[11px] font-medium flex items-center gap-1.5 transition cursor-pointer"
+                                  title="Solicita ao Mestre uma nova narração para a ação anterior"
+                                >
+                                  <RotateCcw className={`w-3 h-3 ${isRegenerating ? 'animate-spin' : ''}`} />
+                                  <span>{isRegenerating ? 'Consultando novamente...' : 'Tentar outra resposta'}</span>
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Painel Retrátil de Dicas de Ação */}
+                            {expandedActionHints[msg.id] && (() => {
+                              const hints = parseActionHints(msg.content);
+                              if (hints.length === 0) return null;
+                              return (
+                                <div className="p-2.5 bg-slate-950/90 border border-amber-900/40 rounded-lg space-y-1.5 animate-fadeIn max-w-xl">
+                                  <span className="text-[10px] uppercase font-semibold text-amber-500 tracking-wider flex items-center gap-1">
+                                    <Lightbulb className="w-3 h-3" />
+                                    Ideias e Abordagens (Clique para usar):
+                                  </span>
+                                  <div className="flex flex-col gap-1">
+                                    {hints.map((hint, hIdx) => (
+                                      <button
+                                        key={hIdx}
+                                        type="button"
+                                        onClick={() => {
+                                          setInputText(hint);
+                                        }}
+                                        className="text-left text-xs text-slate-300 hover:text-amber-200 hover:bg-amber-950/30 p-1.5 rounded transition cursor-pointer flex items-center gap-1.5"
+                                      >
+                                        <ChevronRight className="w-3 h-3 text-amber-500 shrink-0" />
+                                        <span>{hint}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
                       </div>

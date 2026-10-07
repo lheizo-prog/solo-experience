@@ -160,6 +160,14 @@ public class GeminiService {
         }
         requestBody.put("contents", contents);
 
+        // Generation config (calibração de criatividade, foco narrativo e concisão)
+        requestBody.put("generationConfig", Map.of(
+                "temperature", 0.8,
+                "topP", 0.95,
+                "topK", 40,
+                "maxOutputTokens", 1024
+        ));
+
         Exception lastException = null;
         for (String modelToTry : getCandidateModels()) {
             try {

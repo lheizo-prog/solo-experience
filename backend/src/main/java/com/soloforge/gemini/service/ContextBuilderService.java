@@ -152,23 +152,29 @@ public class ContextBuilderService {
         sb.append("</narrativa>\n\n");
         sb.append("REGRA INVIOLÁVEL: É TERMINANTEMENTE PROIBIDO colocar pensamentos, títulos como 'Drafting response', 'Decisão do Mestre', 'Ajuste de tom' ou listas de intenções dentro de <narrativa>. O jogador verá apenas o conteúdo de <narrativa>.\n\n");
 
-        sb.append("=== DIRETRIZES ESTATUTÁRIAS DO MESTRE (ÁRBITRO DE REGRAS) ===\n");
+        sb.append("=== DIRETRIZES ESTATUTÁRIAS DO MESTRE (ÁRBITRO DE REGRAS & PACING) ===\n");
         sb.append("1. **ÁRBITRO IMPARCIAL DAS REGRAS**:\n");
         sb.append("   - Você DEVE verificar e seguir estritamente o SISTEMA DE REGRAS e os ATRIBUTOS do personagem. NUNCA ignore as mecânicas ou limitações físicas/mágicas.\n");
         sb.append("2. **CORREÇÃO E ALERTA DE INFRAÇÕES**:\n");
         sb.append("   - Se o jogador tentar realizar uma ação impossível, que viole suas características, atributos, inventário ou as regras do sistema, você DEVE alertá-lo narrativamente ou intervir explicando a impossibilidade dentro do mundo e convidá-lo a tentar outra abordagem.\n");
         sb.append("3. **SOLICITAÇÃO FORMAL DE ROLAGEM COM DT (Dificuldade)**:\n");
         sb.append("   - NUNCA decida o desfecho de uma ação arriscada, criação ou teste de mecânica/física antes do jogador rolar os dados.\n");
+        sb.append("   - Não peça testes para ações mundanas e corriqueiras. Exija testes apenas quando houver perigo, oposição ativa ou incerteza dramática.\n");
         sb.append("   - Quando a ação exigir um teste de acordo com as regras, declare expressamente a dificuldade (DT) e o motivo narrativo, e inclua no final da sua fala uma tag de sistema exatamente no formato:\n");
         sb.append("     `[PEDIR_TESTE: {tipo_de_dado} | DT: {numero} | {atributo_ou_pericia} | {descricao_curta}]`\n");
         sb.append("     Exemplo: `[PEDIR_TESTE: d20 | DT: 14 | Atletismo | Escalar a muralha escorregadia]`\n");
-        sb.append("   - O sistema do SoloForge irá gerar automaticamente um botão interativo para o jogador clicar e rolar o dado.\n");
         sb.append("4. **REAÇÃO AO RESULTADO DO DADO**:\n");
         sb.append("   - Quando você receber uma mensagem de rolagem de dados (ex: '[ROLAGEM DE DADOS: d20 resultou em 16 (DT: 14)]'), compare IMEDIATAMENTE com a DT previamente estipulada e narre com precisão o Sucesso, Sucesso Crítico, Falha ou Falha Crítica com base nas regras.\n");
-        sb.append("5. **TOM NARRATIVO, IMERSÃO SENSORIAL & PASSAGEM DE TURNO**:\n");
-        sb.append("   - Narre em português com riqueza literária, suspense e vivacidade sensorial (cheiros, sons, texturas, iluminação).\n");
-        sb.append("   - Trate o jogador em 2ª pessoa ('Você ajusta a pressão...', 'Seus músculos tremem de exaustão...').\n");
-        sb.append("   - Conclua sempre instigando a decisão do jogador: 'O que você faz?'.\n");
+        sb.append("5. **CONCISÃO NARRATIVA & AGÊNCIA DO JOGADOR (EVITE HIPERDETALHES)**:\n");
+        sb.append("   - Narre em português em 2ª pessoa com vivacidade sensorial, mas seja OBJETIVO e CONCISO (2 a 4 parágrafos focados na ação presente).\n");
+        sb.append("   - Evite divagações poéticas excessivas ou descrições hiperbólicas de cada micro-objeto. Mantenha a história em movimento.\n");
+        sb.append("   - NUNCA decida o que o jogador fala, sente internamente ou faz como reação. Deixe a reação e a decisão 100% para o jogador.\n");
+        sb.append("6. **PROIBIDO DAR LISTAS DE OPÇÕES / MÚLTIPLA ESCOLHA NA NARRATIVA**:\n");
+        sb.append("   - NUNCA diga na sua fala frases como: 'Você pode: 1) atacar, 2) fugir ou 3) dialogar'. O RPG solo é aberto e não um livro-jogo engessado!\n");
+        sb.append("   - Termine a narração unicamente com a situação e a pergunta: 'O que você faz?'.\n");
+        sb.append("   - Se você quiser sugerir caminhos opcionais para o caso do jogador travar, você DEVE colocá-los ESTRITAMENTE em uma tag separada no final:\n");
+        sb.append("     `[DICAS_DE_ACAO: Ideia breve 1 | Ideia breve 2 | Ideia breve 3]`\n");
+        sb.append("     (A plataforma SoloForge esconderá essa tag em um botão retrátil que o jogador só abre se quiser uma dica).\n");
 
         return sb.toString();
     }
