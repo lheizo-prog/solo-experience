@@ -4,7 +4,9 @@ import com.soloforge.campaign.entity.Campaign;
 import com.soloforge.campaign.entity.CampaignBible;
 import com.soloforge.campaign.entity.CampaignSystem;
 import com.soloforge.campaign.entity.StoryArc;
+import com.soloforge.campaign.entity.StoryDirective;
 import com.soloforge.campaign.repository.StoryArcRepository;
+import com.soloforge.campaign.repository.StoryDirectiveRepository;
 import com.soloforge.npc.entity.Npc;
 import com.soloforge.npc.repository.NpcRepository;
 import com.soloforge.session.entity.Session;
@@ -13,7 +15,6 @@ import com.soloforge.world.entity.WorldDecision;
 import com.soloforge.world.repository.WorldDecisionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-
 
 import java.util.List;
 
@@ -25,7 +26,7 @@ public class ContextBuilderService {
     private final NpcRepository npcRepository;
     private final WorldDecisionRepository worldDecisionRepository;
     private final SessionRepository sessionRepository;
-
+    private final StoryDirectiveRepository storyDirectiveRepository;
 
     public String buildMasterPrompt(Campaign campaign) {
         StringBuilder sb = new StringBuilder();
@@ -121,6 +122,23 @@ public class ContextBuilderService {
                     sb.append(s.getSummary()).append("\n\n");
                 }
             }
+        }
+
+        // Diretrizes e Fatos Ocorridos (Story Steering - ALTA PRIORIDADE)
+        List<StoryDirective> activeDirectives = storyDirectiveRepository.findByCampaignIdAndIsActiveTrueOrderByCreatedAtDesc(campaign.getId());
+        if (!activeDirectives.isEmpty()) {
+            sb.append("=== DIRECIONAMENTO DA HISTÓRIA & FATOS ESTABELECIDOS (PRIORIDADE MÁXIMA DO ENREDO) ===\n");
+            sb.append("O jogador estabeleceu formalmente os seguintes rumos, reviravoltas ou fatos já ocorridos no mundo:\n");
+            for (StoryDirective dir : activeDirectives) {
+                String typeLabel = switch (dir.getType().toUpperCase()) {
+                    case "PLOT_TWIST" -> "REVIRAVOLTA";
+                    case "ESTABLISHED_FACT" -> "FATO CONSUMADO";
+                    case "TONE_SUGGESTION" -> "CLIMA/TOM";
+                    default -> "RUMO NARRATIVO";
+                };
+                sb.append("- [").append(typeLabel).append("]: ").append(dir.getDirective()).append("\n");
+            }
+            sb.append("DIRETRIZ IMPERATIVA: Você DEVE conduzir a narrativa, revelações, diálogos de NPCs e desdobramentos de eventos para honrar estes fatos e caminhar ativamente em direção a estes rumos estabelecidos pelo jogador.\n\n");
         }
 
 

@@ -1,4 +1,4 @@
-import type { Campaign, Session, Message, StoryArc, WorldDecision, Npc } from '../types/soloforge';
+import type { Campaign, Session, Message, StoryArc, WorldDecision, Npc, StoryDirective } from '../types/soloforge';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -300,6 +300,42 @@ export const api = {
       method: 'DELETE'
     });
     if (!res.ok) throw new Error('Falha ao deletar NPC');
+  },
+
+  // Story Directives & Steering
+  async getDirectives(campaignId: string): Promise<StoryDirective[]> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/directives`);
+    if (!res.ok) throw new Error('Falha ao buscar diretrizes de história');
+    return res.json();
+  },
+
+  async createDirective(campaignId: string, data: {
+    directive: string;
+    type?: string;
+    isActive?: boolean;
+  }): Promise<StoryDirective> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/directives`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Falha ao criar diretriz de história');
+    return res.json();
+  },
+
+  async toggleDirective(campaignId: string, directiveId: string): Promise<StoryDirective> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/directives/${directiveId}/toggle`, {
+      method: 'PATCH'
+    });
+    if (!res.ok) throw new Error('Falha ao alternar status da diretriz');
+    return res.json();
+  },
+
+  async deleteDirective(campaignId: string, directiveId: string): Promise<void> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/directives/${directiveId}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) throw new Error('Falha ao excluir diretriz de história');
   }
 };
 

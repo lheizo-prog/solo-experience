@@ -33,13 +33,16 @@ import {
   Download,
   FileSpreadsheet,
   Edit,
-  Zap
+  Zap,
+  Compass,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 import { LoginScreen } from './components/LoginScreen';
 import { api } from './services/api';
 
-import type { Campaign, Session, Message, StoryArc, WorldDecision, Npc } from './types/soloforge';
+import type { Campaign, Session, Message, StoryArc, WorldDecision, Npc, StoryDirective } from './types/soloforge';
 
 interface PendingCheck {
   dice: string;      // ex: "d20"
@@ -77,6 +80,13 @@ export function App() {
 
   // Rolador & Teste Ativo solicitado pelo Mestre
   const [pendingCheck, setPendingCheck] = useState<PendingCheck | null>(null);
+
+  // Painel Central: Abas de Aventura vs Direcionamento de História
+  const [mainTab, setMainTab] = useState<'chat' | 'directives'>('chat');
+  const [directives, setDirectives] = useState<StoryDirective[]>([]);
+  const [newDirectiveText, setNewDirectiveText] = useState('');
+  const [newDirectiveType, setNewDirectiveType] = useState<StoryDirective['type']>('NARRATIVE_DIRECTION');
+  const [isSubmittingDirective, setIsSubmittingDirective] = useState(false);
 
   // Painel Direito: Abas
   const [activeTab, setActiveTab] = useState<RightPanelTab>('arcs');
@@ -326,6 +336,7 @@ export function App() {
           setArcs([]);
           setDecisions([]);
           setNpcs([]);
+          setDirectives([]);
         }
       }
     } catch (err: unknown) {
@@ -351,7 +362,7 @@ export function App() {
         setMessages([]);
       }
 
-      // Carrega arcos e decisões da campanha
+      // Carrega arcos, decisões, NPCs e diretrizes da campanha
       loadSideData(camp.id);
     } catch (e) {
       console.error(e);
@@ -361,14 +372,16 @@ export function App() {
 
   const loadSideData = async (campaignId: string) => {
     try {
-      const [arcsData, decisionsData, npcsData] = await Promise.all([
+      const [arcsData, decisionsData, npcsData, directivesData] = await Promise.all([
         api.getArcs(campaignId),
         api.getDecisions(campaignId),
-        api.getNpcs(campaignId)
+        api.getNpcs(campaignId),
+        api.getDirectives(campaignId).catch(() => [])
       ]);
       setArcs(arcsData);
       setDecisions(decisionsData);
       setNpcs(npcsData);
+      setDirectives(directivesData);
     } catch {
       console.log('Modo offline / sem dados de arcos');
     }
@@ -590,6 +603,56 @@ export function App() {
       setDecisions(prev => prev.filter(d => d.id !== decisionId));
     } catch {
       setDecisions(prev => prev.filter(d => d.id !== decisionId));
+    }
+  };
+
+  // Handlers para Diretrizes da História & Fatos
+  const handleCreateDirective = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCampaign || !newDirectiveText.trim() || isSubmittingDirective) return;
+
+    setIsSubmittingDirective(true);
+    try {
+      const created = await api.createDirective(selectedCampaign.id, {
+        directive: newDirectiveText.trim(),
+        type: newDirectiveType,
+        isActive: true
+      });
+      setDirectives(prev => [created, ...prev]);
+      setNewDirectiveText('');
+    } catch {
+      const mockDir: StoryDirective = {
+        id: 'dir-' + Date.now(),
+        campaignId: selectedCampaign.id,
+        directive: newDirectiveText.trim(),
+        type: newDirectiveType,
+        isActive: true,
+        createdAt: new Date().toISOString()
+      };
+      setDirectives(prev => [mockDir, ...prev]);
+      setNewDirectiveText('');
+    } finally {
+      setIsSubmittingDirective(false);
+    }
+  };
+
+  const handleToggleDirective = async (directiveId: string) => {
+    if (!selectedCampaign) return;
+    try {
+      const updated = await api.toggleDirective(selectedCampaign.id, directiveId);
+      setDirectives(prev => prev.map(d => d.id === directiveId ? updated : d));
+    } catch {
+      setDirectives(prev => prev.map(d => d.id === directiveId ? { ...d, isActive: !d.isActive } : d));
+    }
+  };
+
+  const handleDeleteDirective = async (directiveId: string) => {
+    if (!selectedCampaign) return;
+    try {
+      await api.deleteDirective(selectedCampaign.id, directiveId);
+      setDirectives(prev => prev.filter(d => d.id !== directiveId));
+    } catch {
+      setDirectives(prev => prev.filter(d => d.id !== directiveId));
     }
   };
 
@@ -1175,165 +1238,364 @@ export function App() {
           </div>
         </header>
 
-
-
-        {/* Mensagens da Aventura */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto text-slate-400 space-y-3">
-              <div className="p-4 bg-slate-900 rounded-full border border-slate-800 text-amber-500">
-                <Flame className="w-8 h-8" />
-              </div>
-              <h3 className="text-base font-medium text-slate-200">A Crônica Aguarda</h3>
-              <p className="text-xs leading-relaxed">
-                Descreva sua ação. O Mestre irá avaliar suas regras e perícias, barrar ações inválidas ou exigir um teste com <strong>DT explícita</strong> antes de definir o resultado.
-              </p>
-            </div>
-          ) : (
-            messages.map((msg) => {
-              const isPlayer = msg.sender === 'PLAYER';
-              const isSystem = msg.sender === 'SYSTEM';
-
-              if (isSystem) {
-                return (
-                  <div key={msg.id} className="flex justify-center my-2">
-                    <div className="px-4 py-2.5 rounded-lg bg-amber-950/40 border border-amber-500/40 text-amber-300 text-xs font-mono flex items-center gap-2 shadow-lg backdrop-blur-sm">
-                      <Dices className="w-4 h-4 text-amber-400 animate-bounce" />
-                      <span>{msg.content}</span>
-                    </div>
-                  </div>
-                );
-              }
-
-              return (
-                <div
-                  key={msg.id}
-                  className={`flex gap-3 max-w-3xl ${isPlayer ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}
-                >
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
-                    isPlayer 
-                      ? 'bg-amber-600/20 border-amber-500/40 text-amber-400' 
-                      : 'bg-indigo-600/20 border-indigo-500/40 text-indigo-400'
-                  }`}>
-                    {isPlayer ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
-                  </div>
-
-                  <div className={`flex flex-col ${isPlayer ? 'items-end' : 'items-start'}`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-semibold text-slate-300">
-                        {msg.senderName || (isPlayer ? 'Jogador' : 'Mestre IA')}
-                      </span>
-                      <span className="text-[10px] text-slate-400">
-                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-
-                    <div className={`p-4 rounded-xl text-sm leading-relaxed whitespace-pre-wrap border shadow-md ${
-                      isPlayer 
-                        ? 'bg-gradient-to-br from-amber-600 to-amber-700 text-white border-amber-500/30 shadow-amber-900/10' 
-                        : 'bg-slate-900/90 text-slate-200 border-slate-800 shadow-slate-950/50 backdrop-blur-sm'
-                    }`}>
-                      {cleanDisplayContent(msg.content)}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-
-          {isLoading && (
-            <div className="flex gap-3 items-center text-xs text-amber-400/80 italic p-3 bg-slate-900/50 rounded-lg border border-slate-800/60 w-fit">
-              <Sparkles className="w-4 h-4 animate-spin text-amber-400" />
-              O Mestre está consultando o sistema de regras e pesando a dificuldade...
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* BANNER INTERATIVO: QUANDO O MESTRE EXIGE UM TESTE COM DT */}
-        {pendingCheck && !isLoading && (
-          <div className="mx-3 sm:mx-6 mb-2 p-3 sm:p-4 bg-gradient-to-r from-amber-950/80 to-slate-900/90 border-2 border-amber-500/70 rounded-xl shadow-xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 backdrop-blur-md animate-fade-in">
-            <div className="flex items-center gap-3">
-              <div className="p-2 sm:p-3 bg-amber-500/20 text-amber-400 rounded-lg border border-amber-500/40 shrink-0">
-                <AlertTriangle className="w-5 sm:w-6 h-5 sm:h-6 animate-pulse" />
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                  <span className="font-bold text-amber-300 text-xs sm:text-sm">TESTE EXIGIDO:</span>
-                  <span className="px-1.5 py-0.5 bg-amber-500 text-slate-950 font-black text-[10px] sm:text-xs rounded uppercase">
-                    DT {pendingCheck.dc}
-                  </span>
-                  <span className="text-[11px] sm:text-xs text-slate-300 font-medium">({pendingCheck.attribute})</span>
-                </div>
-                <p className="text-[11px] sm:text-xs text-slate-300 mt-0.5 line-clamp-2">
-                  Motivo: <span className="italic text-slate-200">"{pendingCheck.reason}"</span>
-                </p>
-              </div>
-            </div>
+        {/* NAVEGAÇÃO DE ABAS CENTRAIS */}
+        {selectedCampaign && (
+          <div className="flex items-center border-b border-slate-800 bg-slate-900/60 px-3 sm:px-6 gap-2">
+            <button
+              onClick={() => setMainTab('chat')}
+              className={`flex items-center gap-2 py-2.5 px-3 border-b-2 text-xs sm:text-sm font-medium transition cursor-pointer ${
+                mainTab === 'chat'
+                  ? 'border-amber-500 text-amber-400 bg-amber-500/5'
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Sword className="w-4 h-4" />
+              <span>Aventura / Ações</span>
+            </button>
 
             <button
-              onClick={() => rollDice(parseInt(pendingCheck.dice.replace(/\D/g, '') || '20', 10), pendingCheck)}
-              className="px-4 py-2 sm:px-5 sm:py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs sm:text-sm rounded-lg flex items-center justify-center gap-2 transition shadow-lg shadow-amber-600/30 cursor-pointer shrink-0"
+              onClick={() => setMainTab('directives')}
+              className={`flex items-center gap-2 py-2.5 px-3 border-b-2 text-xs sm:text-sm font-medium transition cursor-pointer ${
+                mainTab === 'directives'
+                  ? 'border-amber-500 text-amber-400 bg-amber-500/5'
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
+              }`}
             >
-              <Dices className="w-4 sm:w-5 h-4 sm:h-5" />
-              Rolar {pendingCheck.dice.toUpperCase()} agora!
+              <Compass className="w-4 h-4 text-amber-400" />
+              <span>Direcionamento da História</span>
+              {directives.filter(d => d.isActive).length > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-full text-[10px] font-bold">
+                  {directives.filter(d => d.isActive).length} ativas
+                </span>
+              )}
             </button>
           </div>
         )}
 
-        {/* BARRA DE ROLAGEM RÁPIDA DE DADOS & INPUT BAR */}
-        <div className="p-3 sm:p-4 border-t border-slate-800 bg-slate-900/50 space-y-2.5 sm:space-y-3">
-          
-          <div className="flex flex-wrap items-center justify-between gap-2 max-w-4xl mx-auto text-xs text-slate-400">
-            <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full no-scrollbar">
-              <span className="font-semibold text-slate-300 flex items-center gap-1 text-[11px] whitespace-nowrap">
-                <Dices className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                Dados:
-              </span>
-              {[4, 6, 8, 10, 12, 20, 100].map(sides => (
-                <button
-                  key={sides}
-                  onClick={() => rollDice(sides)}
-                  disabled={!selectedCampaign || isLoading}
-                  className="min-w-[36px] py-1.5 px-2 bg-slate-950 hover:bg-slate-800 active:bg-amber-950/60 disabled:opacity-40 border border-slate-800 hover:border-amber-500/50 rounded text-slate-200 font-mono transition text-xs cursor-pointer active:scale-95 text-center shrink-0"
-                >
-                  d{sides}
-                </button>
-              ))}
+        {/* CONTEÚDO DA ABA CENTRAL: CHAT OU DIRECIONAMENTO DA HISTÓRIA */}
+        {mainTab === 'directives' && selectedCampaign ? (
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+            {/* Header explicativo */}
+            <div className="p-4 rounded-xl bg-gradient-to-r from-amber-950/30 via-slate-900/80 to-slate-900/80 border border-amber-500/30">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 bg-amber-500/20 text-amber-400 rounded-lg border border-amber-500/30 shrink-0">
+                  <Compass className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm sm:text-base text-amber-300">
+                    Sussurros do Destino & Fatos Estabelecidos
+                  </h3>
+                  <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                    Instrua o <strong>Game Master IA</strong> sobre reviravoltas iminentes, rumos narrativos, fatos consolidados ou o clima da campanha.
+                    Todas as diretrizes <strong>ativas</strong> têm prioridade máxima de condução narrativa durante os diálogos e acontecimentos!
+                  </p>
+                </div>
+              </div>
             </div>
 
-            {pendingCheck && (
-              <span className="text-amber-400/90 text-[11px] flex items-center gap-1">
-                <RotateCcw className="w-3 h-3" />
-                DT {pendingCheck.dc}
-              </span>
-            )}
+            {/* Formulário para Adicionar Nova Diretriz */}
+            <form onSubmit={handleCreateDirective} className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5 uppercase tracking-wider">
+                  <Sparkle className="w-3.5 h-3.5 text-amber-400" />
+                  Nova Diretriz ou Fato Ocorrido
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  Injetado diretamente no prompt do Mestre
+                </span>
+              </div>
+
+              <div>
+                <textarea
+                  rows={2}
+                  value={newDirectiveText}
+                  onChange={(e) => setNewDirectiveText(e.target.value)}
+                  placeholder="Ex: O ferreiro de pedra na verdade é um espião da corte decadente disfarçado; Conduza a cena para uma emboscada na ponte suspensa..."
+                  className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-lg p-3 text-xs sm:text-sm text-slate-100 placeholder-slate-500 outline-none resize-none"
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-slate-400 font-medium">Tipo:</span>
+                  {(
+                    [
+                      { key: 'NARRATIVE_DIRECTION', label: '🧭 Rumo Narrativo' },
+                      { key: 'PLOT_TWIST', label: '⚡ Reviravolta' },
+                      { key: 'ESTABLISHED_FACT', label: '📜 Fato Estabelecido' },
+                      { key: 'TONE_SUGGESTION', label: '🎭 Clima / Tom' }
+                    ] as const
+                  ).map(t => (
+                    <button
+                      key={t.key}
+                      type="button"
+                      onClick={() => setNewDirectiveType(t.key)}
+                      className={`text-[11px] px-2.5 py-1 rounded-md border font-medium transition cursor-pointer ${
+                        newDirectiveType === t.key
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={!newDirectiveText.trim() || isSubmittingDirective}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 active:bg-amber-700 disabled:opacity-40 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  {isSubmittingDirective ? 'Registrando...' : 'Registrar Diretriz'}
+                </button>
+              </div>
+            </form>
+
+            {/* Lista de Diretrizes Registradas */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Diretrizes da Crônica ({directives.length})
+                </h4>
+                <span className="text-[11px] text-slate-400">
+                  Desative diretrizes que já se concluíram na história
+                </span>
+              </div>
+
+              {directives.length === 0 ? (
+                <div className="p-8 text-center bg-slate-900/40 rounded-xl border border-slate-800/60 text-slate-400 space-y-2">
+                  <Compass className="w-8 h-8 mx-auto text-slate-500 stroke-1" />
+                  <p className="text-xs">Nenhum direcionamento ou fato registrado ainda.</p>
+                  <p className="text-[11px] text-slate-400">
+                    Use o formulário acima para guiar a narrativa sem que isso apareça no diálogo aberto com o Mestre.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {directives.map((dir) => {
+                    const typeLabels: Record<string, { label: string; badgeClass: string }> = {
+                      PLOT_TWIST: { label: 'Reviravolta', badgeClass: 'bg-rose-500/20 text-rose-300 border-rose-500/30' },
+                      NARRATIVE_DIRECTION: { label: 'Rumo Narrativo', badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
+                      ESTABLISHED_FACT: { label: 'Fato Estabelecido', badgeClass: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
+                      TONE_SUGGESTION: { label: 'Clima / Tom', badgeClass: 'bg-purple-500/20 text-purple-300 border-purple-500/30' }
+                    };
+                    const typeConfig = typeLabels[dir.type] || { label: dir.type, badgeClass: 'bg-slate-800 text-slate-300 border-slate-700' };
+
+                    return (
+                      <div
+                        key={dir.id}
+                        className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between gap-3 ${
+                          dir.isActive
+                            ? 'bg-slate-900/90 border-amber-500/40 shadow-sm'
+                            : 'bg-slate-950/60 border-slate-800/80 opacity-60'
+                        }`}
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${typeConfig.badgeClass}`}>
+                              {typeConfig.label}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              {new Date(dir.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+
+                          <p className={`text-xs leading-relaxed ${dir.isActive ? 'text-slate-100 font-medium' : 'text-slate-400 line-through'}`}>
+                            {dir.directive}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-800/60">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDirective(dir.id)}
+                            className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+                              dir.isActive
+                                ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40'
+                                : 'bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700'
+                            }`}
+                            title={dir.isActive ? 'Pausar diretriz para a IA não usar agora' : 'Ativar diretriz para a IA usar'}
+                          >
+                            {dir.isActive ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                            <span>{dir.isActive ? 'Ativa no Mestre' : 'Pausada'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDirective(dir.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-400 rounded-md transition cursor-pointer"
+                            title="Excluir diretriz"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
+        ) : (
+          <>
+            {/* Mensagens da Aventura */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {messages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto text-slate-400 space-y-3">
+                  <div className="p-4 bg-slate-900 rounded-full border border-slate-800 text-amber-500">
+                    <Flame className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-base font-medium text-slate-200">A Crônica Aguarda</h3>
+                  <p className="text-xs leading-relaxed">
+                    Descreva sua ação. O Mestre irá avaliar suas regras e perícias, barrar ações inválidas ou exigir um teste com <strong>DT explícita</strong> antes de definir o resultado.
+                  </p>
+                </div>
+              ) : (
+                messages.map((msg) => {
+                  const isPlayer = msg.sender === 'PLAYER';
+                  const isSystem = msg.sender === 'SYSTEM';
 
+                  if (isSystem) {
+                    return (
+                      <div key={msg.id} className="flex justify-center my-2">
+                        <div className="px-4 py-2.5 rounded-lg bg-amber-950/40 border border-amber-500/40 text-amber-300 text-xs font-mono flex items-center gap-2 shadow-lg backdrop-blur-sm">
+                          <Dices className="w-4 h-4 text-amber-400 animate-bounce" />
+                          <span>{msg.content}</span>
+                        </div>
+                      </div>
+                    );
+                  }
 
-          <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="flex gap-2 max-w-4xl mx-auto">
-            <input
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder={
-                selectedCampaign 
-                  ? "Descreva sua ação ou fala... (O Mestre avaliará a viabilidade e pedirá teste se incerto)" 
-                  : "Selecione uma campanha para jogar..."
-              }
-              disabled={!selectedCampaign || isLoading}
-              className="flex-1 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-lg px-4 py-3 text-base sm:text-sm text-slate-100 placeholder-slate-400 outline-none transition disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={!selectedCampaign || !inputText.trim() || isLoading}
-              className="px-4 sm:px-5 py-3 bg-amber-600 hover:bg-amber-500 active:bg-amber-700 disabled:bg-slate-800 text-white disabled:text-slate-400 rounded-lg font-medium text-sm flex items-center gap-2 transition shadow-lg shadow-amber-700/20 cursor-pointer disabled:cursor-not-allowed shrink-0"
-            >
-              <Send className="w-4 h-4" />
-              <span className="hidden sm:inline">Ação</span>
-            </button>
-          </form>
-        </div>
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`flex gap-3 max-w-3xl ${isPlayer ? 'ml-auto flex-row-reverse' : 'mr-auto'}`}
+                    >
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
+                        isPlayer 
+                          ? 'bg-amber-600/20 border-amber-500/40 text-amber-400' 
+                          : 'bg-indigo-600/20 border-indigo-500/40 text-indigo-400'
+                      }`}>
+                        {isPlayer ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+                      </div>
+
+                      <div className={`flex flex-col ${isPlayer ? 'items-end' : 'items-start'}`}>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-semibold text-slate-300">
+                            {msg.senderName || (isPlayer ? 'Jogador' : 'Mestre IA')}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+
+                        <div className={`p-4 rounded-xl text-sm leading-relaxed whitespace-pre-wrap border shadow-md ${
+                          isPlayer 
+                            ? 'bg-gradient-to-br from-amber-600 to-amber-700 text-white border-amber-500/30 shadow-amber-900/10' 
+                            : 'bg-slate-900/90 text-slate-200 border-slate-800 shadow-slate-950/50 backdrop-blur-sm'
+                        }`}>
+                          {cleanDisplayContent(msg.content)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+
+              {isLoading && (
+                <div className="flex gap-3 items-center text-xs text-amber-400/80 italic p-3 bg-slate-900/50 rounded-lg border border-slate-800/60 w-fit">
+                  <Sparkles className="w-4 h-4 animate-spin text-amber-400" />
+                  O Mestre está consultando o sistema de regras e pesando a dificuldade...
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* BANNER INTERATIVO: QUANDO O MESTRE EXIGE UM TESTE COM DT */}
+            {pendingCheck && !isLoading && (
+              <div className="mx-3 sm:mx-6 mb-2 p-3 sm:p-4 bg-gradient-to-r from-amber-950/80 to-slate-900/90 border-2 border-amber-500/70 rounded-xl shadow-xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 backdrop-blur-md animate-fade-in">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 sm:p-3 bg-amber-500/20 text-amber-400 rounded-lg border border-amber-500/40 shrink-0">
+                    <AlertTriangle className="w-5 sm:w-6 h-5 sm:h-6 animate-pulse" />
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                      <span className="font-bold text-amber-300 text-xs sm:text-sm">TESTE EXIGIDO:</span>
+                      <span className="px-1.5 py-0.5 bg-amber-500 text-slate-950 font-black text-[10px] sm:text-xs rounded uppercase">
+                        DT {pendingCheck.dc}
+                      </span>
+                      <span className="text-[11px] sm:text-xs text-slate-300 font-medium">({pendingCheck.attribute})</span>
+                    </div>
+                    <p className="text-[11px] sm:text-xs text-slate-300 mt-0.5 line-clamp-2">
+                      Motivo: <span className="italic text-slate-200">"{pendingCheck.reason}"</span>
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => rollDice(parseInt(pendingCheck.dice.replace(/\D/g, '') || '20', 10), pendingCheck)}
+                  className="px-4 py-2 sm:px-5 sm:py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs sm:text-sm rounded-lg flex items-center justify-center gap-2 transition shadow-lg shadow-amber-600/30 cursor-pointer shrink-0"
+                >
+                  <Dices className="w-4 sm:w-5 h-4 sm:h-5" />
+                  Rolar {pendingCheck.dice.toUpperCase()} agora!
+                </button>
+              </div>
+            )}
+
+            {/* BARRA DE ROLAGEM RÁPIDA DE DADOS & INPUT BAR */}
+            <div className="p-3 sm:p-4 border-t border-slate-800 bg-slate-900/50 space-y-2.5 sm:space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 max-w-4xl mx-auto text-xs text-slate-400">
+                <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full no-scrollbar">
+                  <span className="font-semibold text-slate-300 flex items-center gap-1 text-[11px] whitespace-nowrap">
+                    <Dices className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    Dados:
+                  </span>
+                  {[4, 6, 8, 10, 12, 20, 100].map(sides => (
+                    <button
+                      key={sides}
+                      onClick={() => rollDice(sides)}
+                      disabled={!selectedCampaign || isLoading}
+                      className="min-w-[36px] py-1.5 px-2 bg-slate-950 hover:bg-slate-800 active:bg-amber-950/60 disabled:opacity-40 border border-slate-800 hover:border-amber-500/50 rounded text-slate-200 font-mono transition text-xs cursor-pointer active:scale-95 text-center shrink-0"
+                    >
+                      d{sides}
+                    </button>
+                  ))}
+                </div>
+
+                {pendingCheck && (
+                  <span className="text-amber-400/90 text-[11px] flex items-center gap-1">
+                    <RotateCcw className="w-3 h-3" />
+                    DT {pendingCheck.dc}
+                  </span>
+                )}
+              </div>
+
+              <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="flex gap-2 max-w-4xl mx-auto">
+                <input
+                  type="text"
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder={
+                    selectedCampaign 
+                      ? "Descreva sua ação ou fala... (O Mestre avaliará a viabilidade e pedirá teste se incerto)" 
+                      : "Selecione uma campanha para jogar..."
+                  }
+                  disabled={!selectedCampaign || isLoading}
+                  className="flex-1 bg-slate-950 border border-slate-800 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-lg px-4 py-3 text-base sm:text-sm text-slate-100 placeholder-slate-400 outline-none transition disabled:opacity-50"
+                />
+                <button
+                  type="submit"
+                  disabled={!selectedCampaign || !inputText.trim() || isLoading}
+                  className="px-4 sm:px-5 py-3 bg-amber-600 hover:bg-amber-500 active:bg-amber-700 disabled:bg-slate-800 text-white disabled:text-slate-400 rounded-lg font-medium text-sm flex items-center gap-2 transition shadow-lg shadow-amber-700/20 cursor-pointer disabled:cursor-not-allowed shrink-0"
+                >
+                  <Send className="w-4 h-4" />
+                  <span className="hidden sm:inline">Ação</span>
+                </button>
+              </form>
+            </div>
+          </>
+        )}
       </main>
 
       {/* PAINEL DIREITO: ABAS DE BÍBLIA, ARCOS E MEMÓRIA DO MUNDO */}

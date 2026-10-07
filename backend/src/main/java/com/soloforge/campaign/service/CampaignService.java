@@ -12,6 +12,7 @@ import com.soloforge.session.repository.SessionRepository;
 import com.soloforge.campaign.repository.StoryArcRepository;
 import com.soloforge.message.entity.Message;
 import com.soloforge.message.repository.MessageRepository;
+import com.soloforge.campaign.repository.StoryDirectiveRepository;
 import com.soloforge.npc.repository.NpcRepository;
 import com.soloforge.world.repository.WorldDecisionRepository;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,7 @@ public class CampaignService {
     private final StoryArcRepository storyArcRepository;
     private final NpcRepository npcRepository;
     private final WorldDecisionRepository worldDecisionRepository;
+    private final StoryDirectiveRepository storyDirectiveRepository;
 
     @Transactional
     public CampaignDto.Response createCampaign(CampaignDto.CreateRequest request) {
@@ -164,7 +166,10 @@ public class CampaignService {
         // 5. Remove Decisões do Mundo
         worldDecisionRepository.deleteAll(worldDecisionRepository.findByCampaignIdOrderByCreatedAtDesc(campaignId));
 
-        // 6. Remove a Campanha (Bíblia e Sistema com CascadeType.ALL serão excluídos juntos)
+        // 6. Remove Diretrizes de História / Fatos
+        storyDirectiveRepository.deleteAll(storyDirectiveRepository.findByCampaignIdOrderByCreatedAtDesc(campaignId));
+
+        // 7. Remove a Campanha (Bíblia e Sistema com CascadeType.ALL serão excluídos juntos)
         campaignRepository.delete(campaign);
     }
 

@@ -76,6 +76,11 @@ export interface Npc {
   createdAt: string;
 }
 
-
-
-
+export interface StoryDirective {
+  id: string;
+  campaignId: string;
+  directive: string;
+  type: 'PLOT_TWIST' | 'NARRATIVE_DIRECTION' | 'ESTABLISHED_FACT' | 'TONE_SUGGESTION';
+  isActive: boolean;
+  createdAt: string;
+}
