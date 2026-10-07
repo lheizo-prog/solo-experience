@@ -38,7 +38,12 @@ import {
   Eye,
   EyeOff,
   Eraser,
-  RefreshCw
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  Search,
+  Copy,
+  Check
 } from 'lucide-react';
 
 import { LoginScreen } from './components/LoginScreen';
@@ -97,6 +102,69 @@ export function App() {
   const [arcs, setArcs] = useState<StoryArc[]>([]);
   const [decisions, setDecisions] = useState<WorldDecision[]>([]);
   const [npcs, setNpcs] = useState<Npc[]>([]);
+
+  // Estados de Expansão/Acordeão (com persistência no localStorage)
+  const [expandedNpcIds, setExpandedNpcIds] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('soloforge_expanded_npcs');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [expandedBibleSections, setExpandedBibleSections] = useState<{ system: boolean; character: boolean; lore: boolean }>(() => {
+    try {
+      const saved = localStorage.getItem('soloforge_bible_sections');
+      return saved ? JSON.parse(saved) : { system: true, character: true, lore: true };
+    } catch {
+      return { system: true, character: true, lore: true };
+    }
+  });
+
+  // Busca e Filtros de NPCs
+  const [npcSearchTerm, setNpcSearchTerm] = useState('');
+  const [npcFilterMode, setNpcFilterMode] = useState<'ALL' | 'CRYSTALLIZED'>('ALL');
+
+  // Feedback de Cópia (ID do item copiado)
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const toggleNpcExpanded = (id: string) => {
+    setExpandedNpcIds(prev => {
+      const updated = { ...prev, [id]: !prev[id] };
+      localStorage.setItem('soloforge_expanded_npcs', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const toggleBibleSection = (section: 'system' | 'character' | 'lore') => {
+    setExpandedBibleSections(prev => {
+      const updated = { ...prev, [section]: !prev[section] };
+      localStorage.setItem('soloforge_bible_sections', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const toggleAllNpcs = (expand: boolean) => {
+    const updated: Record<string, boolean> = {};
+    npcs.forEach(n => {
+      updated[n.id] = expand;
+    });
+    setExpandedNpcIds(updated);
+    localStorage.setItem('soloforge_expanded_npcs', JSON.stringify(updated));
+  };
+
+  const toggleAllBibleSections = (expand: boolean) => {
+    const updated = { system: expand, character: expand, lore: expand };
+    setExpandedBibleSections(updated);
+    localStorage.setItem('soloforge_bible_sections', JSON.stringify(updated));
+  };
 
   // Modais de Criação Rápida de Arco, Decisão e NPC
   const [isNewArcModal, setIsNewArcModal] = useState(false);
@@ -1921,6 +1989,64 @@ export function App() {
                   </div>
                 </div>
 
+                {/* Barra de Busca Rápida e Ações Globais */}
+                {npcs.length > 0 && (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={npcSearchTerm}
+                          onChange={e => setNpcSearchTerm(e.target.value)}
+                          placeholder="Buscar por nome ou papel..."
+                          className="w-full pl-8 pr-2 py-1.5 bg-slate-900/90 border border-slate-800 rounded text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-amber-500 transition"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => toggleAllNpcs(true)}
+                          className="px-2 py-1.5 bg-slate-900 hover:bg-slate-800 text-[10px] text-slate-400 hover:text-slate-200 border border-slate-800 rounded transition cursor-pointer"
+                          title="Expandir detalhes de todos os NPCs"
+                        >
+                          Expandir
+                        </button>
+                        <button
+                          onClick={() => toggleAllNpcs(false)}
+                          className="px-2 py-1.5 bg-slate-900 hover:bg-slate-800 text-[10px] text-slate-400 hover:text-slate-200 border border-slate-800 rounded transition cursor-pointer"
+                          title="Recolher detalhes de todos os NPCs"
+                        >
+                          Recolher
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 text-[11px]">
+                      <button
+                        onClick={() => setNpcFilterMode('ALL')}
+                        className={`px-2 py-0.5 rounded text-[10px] transition cursor-pointer ${
+                          npcFilterMode === 'ALL'
+                            ? 'bg-slate-800 text-slate-200 font-semibold'
+                            : 'text-slate-500 hover:text-slate-400'
+                        }`}
+                      >
+                        Todos ({npcs.length})
+                      </button>
+                      <button
+                        onClick={() => setNpcFilterMode('CRYSTALLIZED')}
+                        className={`px-2 py-0.5 rounded text-[10px] transition cursor-pointer flex items-center gap-1 ${
+                          npcFilterMode === 'CRYSTALLIZED'
+                            ? 'bg-amber-950/80 text-amber-300 font-semibold border border-amber-900/50'
+                            : 'text-slate-500 hover:text-slate-400'
+                        }`}
+                      >
+                        <Sparkle className="w-2.5 h-2.5 text-amber-400" />
+                        Cristalizados ({npcs.filter(n => n.isCrystallized).length})
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {npcs.length === 0 ? (
                   <div className="p-4 text-center border border-dashed border-slate-800 rounded-lg text-xs text-slate-400 space-y-2">
                     <p>Nenhum personagem registrado nesta crônica.</p>
@@ -1932,119 +2058,182 @@ export function App() {
                     </button>
                   </div>
                 ) : (
-                  npcs.map(npc => (
-                    <div
-                      key={npc.id}
-                      className={`p-3 rounded-lg border text-xs transition space-y-2 ${
-                        npc.isCrystallized 
-                          ? 'bg-slate-950/90 border-amber-500/40 shadow-sm shadow-amber-900/10' 
-                          : 'bg-slate-950/40 border-slate-800/80 opacity-70'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2.5">
-                        <div className="flex items-center gap-2.5">
-                          {/* Avatar / Imagem com Fallback Temático */}
-                          <div className="w-10 h-10 rounded-full border border-amber-500/40 bg-slate-900 shrink-0 overflow-hidden flex items-center justify-center shadow-inner relative group">
-                            {npc.imageUrl ? (
-                              <img 
-                                src={npc.imageUrl} 
-                                alt={npc.name} 
-                                className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  // Fallback se imagem quebrar
-                                  (e.target as HTMLElement).style.display = 'none';
-                                }}
-                              />
-                            ) : (
-                              <span className="text-amber-400 font-bold text-xs uppercase">
-                                {npc.name.slice(0, 2)}
-                              </span>
-                            )}
-                          </div>
+                  npcs
+                    .filter(npc => {
+                      if (npcFilterMode === 'CRYSTALLIZED' && !npc.isCrystallized) return false;
+                      if (!npcSearchTerm.trim()) return true;
+                      const term = npcSearchTerm.toLowerCase();
+                      return (
+                        npc.name.toLowerCase().includes(term) ||
+                        (npc.role && npc.role.toLowerCase().includes(term))
+                      );
+                    })
+                    .map(npc => {
+                      const isExpanded = !!expandedNpcIds[npc.id];
+                      const hasStoryDetails = !!(npc.description || npc.personality || npc.memory);
 
-                          <div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-semibold text-slate-200 text-xs">
-                                {npc.name}
-                              </span>
-                              <span className="text-[10px] text-amber-400 px-1.5 py-0.2 rounded bg-amber-950/60 border border-amber-900/40">
-                                {npc.role || 'Personagem'}
-                              </span>
+                      return (
+                        <div
+                          key={npc.id}
+                          className={`p-3 rounded-lg border text-xs transition space-y-2.5 ${
+                            npc.isCrystallized 
+                              ? 'bg-slate-950/90 border-amber-500/40 shadow-sm shadow-amber-900/10' 
+                              : 'bg-slate-950/40 border-slate-800/80 opacity-80'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2.5">
+                            <div className="flex items-center gap-2.5">
+                              {/* Avatar / Imagem com Fallback Temático */}
+                              <div className="w-10 h-10 rounded-full border border-amber-500/40 bg-slate-900 shrink-0 overflow-hidden flex items-center justify-center shadow-inner relative group">
+                                {npc.imageUrl ? (
+                                  <img 
+                                    src={npc.imageUrl} 
+                                    alt={npc.name} 
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      (e.target as HTMLElement).style.display = 'none';
+                                    }}
+                                  />
+                                ) : (
+                                  <span className="text-amber-400 font-bold text-xs uppercase">
+                                    {npc.name.slice(0, 2)}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-semibold text-slate-200 text-xs">
+                                    {npc.name}
+                                  </span>
+                                  <span className="text-[10px] text-amber-400 px-1.5 py-0.2 rounded bg-amber-950/60 border border-amber-900/40">
+                                    {npc.role || 'Personagem'}
+                                  </span>
+                                </div>
+                                {npc.description && !isExpanded && (
+                                  <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">
+                                    {npc.description}
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                            {npc.description && (
-                              <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">
-                                {npc.description}
-                              </p>
-                            )}
+
+                            <div className="flex items-center gap-1 shrink-0">
+                              {/* Botão de Evoluir por Evento com IA */}
+                              <button
+                                onClick={() => handleOpenEvolveNpc(npc)}
+                                className="p-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-950/40 active:bg-amber-900/60 rounded transition cursor-pointer active:scale-95"
+                                title="Evoluir Atributos por Evento (IA)"
+                              >
+                                <Zap className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Botão de Editar Ficha/Imagem */}
+                              <button
+                                onClick={() => handleOpenEditNpc(npc)}
+                                className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 active:bg-slate-700 rounded transition cursor-pointer active:scale-95"
+                                title="Editar Atributos & Imagem"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                onClick={() => handleToggleCrystallize(npc)}
+                                className={`px-2 py-1 rounded text-[10px] font-medium flex items-center gap-1 transition cursor-pointer active:scale-95 ${
+                                  npc.isCrystallized
+                                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                    : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                                }`}
+                                title={npc.isCrystallized ? "Cristalizado no Contexto do Mestre" : "Passageiro (não injetado)"}
+                              >
+                                <Sparkle className="w-3 h-3 text-amber-400" />
+                                <span className="hidden sm:inline">{npc.isCrystallized ? 'Cristalizado' : 'Passageiro'}</span>
+                              </button>
+
+                              <button
+                                onClick={() => handleDeleteNpc(npc.id)}
+                                className="p-1.5 text-slate-400 hover:text-rose-400 active:text-rose-300 hover:bg-rose-950/40 rounded transition cursor-pointer active:scale-95"
+                                title="Remover NPC"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
+
+                          {/* REQUISITO: Atributos SEMPRE VISÍVEIS (mesmo com card reduzido) */}
+                          {npc.attributes && (
+                            <div className="bg-slate-900/90 rounded border border-amber-950/60 p-2 text-[11px] font-mono text-amber-200/90 leading-tight">
+                              <div className="flex items-center justify-between gap-1 text-[10px] uppercase tracking-wider text-amber-500 font-sans font-semibold mb-1">
+                                <div className="flex items-center gap-1">
+                                  <Sword className="w-3 h-3" />
+                                  <span>Atributos & Combate:</span>
+                                </div>
+                                <button
+                                  onClick={() => handleCopyToClipboard(npc.attributes || '', `attr-${npc.id}`)}
+                                  className="text-[10px] normal-case tracking-normal text-slate-400 hover:text-amber-300 flex items-center gap-1 transition cursor-pointer"
+                                  title="Copiar atributos para a área de transferência"
+                                >
+                                  {copiedId === `attr-${npc.id}` ? (
+                                    <>
+                                      <Check className="w-3 h-3 text-emerald-400" />
+                                      <span className="text-emerald-400 font-medium">Copiado</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-3 h-3" />
+                                      <span>Copiar</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                              <span className="whitespace-pre-wrap">{npc.attributes}</span>
+                            </div>
+                          )}
+
+                          {/* Toggle de Detalhes da História (Descrição, Personalidade, Memória) */}
+                          {hasStoryDetails && (
+                            <div>
+                              <button
+                                onClick={() => toggleNpcExpanded(npc.id)}
+                                className="w-full flex items-center justify-between py-1 px-1.5 rounded hover:bg-slate-900/60 text-[11px] text-slate-400 hover:text-amber-300 transition cursor-pointer"
+                              >
+                                <span>{isExpanded ? 'Ocultar detalhes da história' : 'Ver história & personalidade'}</span>
+                                {isExpanded ? (
+                                  <ChevronUp className="w-3.5 h-3.5 text-amber-400" />
+                                ) : (
+                                  <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+                                )}
+                              </button>
+
+                              {isExpanded && (
+                                <div className="mt-2 space-y-2 pt-2 border-t border-slate-800/80 animate-fadeIn">
+                                  {npc.description && (
+                                    <div className="text-slate-300 text-[11px] leading-relaxed">
+                                      <strong className="text-slate-400 block mb-0.5">Descrição:</strong>
+                                      <p className="text-slate-300">{npc.description}</p>
+                                    </div>
+                                  )}
+
+                                  {npc.personality && (
+                                    <div className="text-slate-300 text-[11px] leading-relaxed">
+                                      <strong className="text-slate-400 block mb-0.5">Personalidade:</strong>
+                                      <p className="text-slate-300">{npc.personality}</p>
+                                    </div>
+                                  )}
+
+                                  {npc.memory && (
+                                    <div className="text-amber-200/90 text-[11px] leading-relaxed italic bg-amber-950/20 p-2 rounded border border-amber-900/30">
+                                      <strong className="text-amber-400 not-italic block mb-0.5">Memória com o PJ:</strong>
+                                      {npc.memory}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {/* Botão de Evoluir por Evento com IA */}
-                          <button
-                            onClick={() => handleOpenEvolveNpc(npc)}
-                            className="p-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-950/40 active:bg-amber-900/60 rounded transition cursor-pointer active:scale-95"
-                            title="Evoluir Atributos por Evento (IA)"
-                          >
-                            <Zap className="w-4 h-4" />
-                          </button>
-
-                          {/* Botão de Editar Ficha/Imagem */}
-                          <button
-                            onClick={() => handleOpenEditNpc(npc)}
-                            className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 active:bg-slate-700 rounded transition cursor-pointer active:scale-95"
-                            title="Editar Atributos & Imagem"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-
-                          <button
-                            onClick={() => handleToggleCrystallize(npc)}
-                            className={`px-2 py-1 rounded text-[10px] font-medium flex items-center gap-1 transition cursor-pointer active:scale-95 ${
-                              npc.isCrystallized
-                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                                : 'bg-slate-800 text-slate-400 hover:text-slate-200'
-                            }`}
-                            title={npc.isCrystallized ? "Cristalizado no Contexto do Mestre" : "Passageiro (não injetado)"}
-                          >
-                            <Sparkle className="w-3.5 h-3.5 text-amber-400" />
-                            <span className="hidden sm:inline">{npc.isCrystallized ? 'Cristalizado' : 'Passageiro'}</span>
-                          </button>
-
-                          <button
-                            onClick={() => handleDeleteNpc(npc.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-400 active:text-rose-300 hover:bg-rose-950/40 rounded transition cursor-pointer active:scale-95"
-                            title="Remover NPC"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Exibição dos Atributos do NPC */}
-                      {npc.attributes && (
-                        <div className="bg-slate-900/90 rounded border border-amber-950/60 p-2 text-[11px] font-mono text-amber-200/90 leading-tight">
-                          <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-amber-500 font-sans font-semibold mb-1">
-                            <Sword className="w-3 h-3" />
-                            <span>Atributos & Combate:</span>
-                          </div>
-                          <span className="whitespace-pre-wrap">{npc.attributes}</span>
-                        </div>
-                      )}
-
-                      {npc.personality && (
-                        <p className="text-slate-300 text-[11px] leading-relaxed">
-                          <strong className="text-slate-400">Personalidade:</strong> {npc.personality}
-                        </p>
-                      )}
-
-                      {npc.memory && (
-                        <p className="text-amber-200/90 text-[11px] leading-relaxed italic bg-amber-950/20 p-1.5 rounded border border-amber-900/20">
-                          <strong className="text-amber-400">Memória com o PJ:</strong> {npc.memory}
-                        </p>
-                      )}
-                    </div>
-                  ))
+                      );
+                    })
                 )}
               </div>
             )}
@@ -2114,79 +2303,227 @@ export function App() {
 
             {/* ABA 3: BÍBLIA & REGRAS */}
             {activeTab === 'bible' && (
-              <div className="space-y-4 text-xs">
-                {/* Sistema de Regras & Arbitragem */}
-                <div className="p-3 bg-slate-950/70 rounded-lg border border-amber-500/30 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-amber-300 flex items-center gap-1.5">
-                      <ShieldAlert className="w-4 h-4 text-amber-400" />
-                      Sistema: {selectedCampaign.system?.name || 'Regras Padrão'}
-                    </span>
+              <div className="space-y-3 text-xs">
+                {/* Cabeçalho da Aba & Ações Globais */}
+                <div className="flex items-center justify-between pb-1 border-b border-slate-800/60">
+                  <span className="text-[11px] text-slate-400 font-medium">Bíblia & Regras da Campanha</span>
+                  <div className="flex items-center gap-1">
                     <button
-                      onClick={() => {
-                        setRulesSystemName(selectedCampaign.system?.name || '');
-                        setIsRulesModal(true);
-                      }}
-                      className="px-2 py-1 bg-amber-600/30 hover:bg-amber-600 text-amber-300 hover:text-white rounded text-[10px] font-medium flex items-center gap-1 transition cursor-pointer border border-amber-500/40"
-                      title="Importar e compactar manuais (PDF, MD, CSV, TXT) ou texto com IA"
+                      onClick={() => toggleAllBibleSections(true)}
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-[10px] text-slate-400 hover:text-slate-200 border border-slate-800 rounded transition cursor-pointer"
+                      title="Expandir todas as seções da bíblia"
                     >
-                      <Brain className="w-3 h-3" />
-                      <span>Sintetizar com IA</span>
+                      Expandir Todas
+                    </button>
+                    <button
+                      onClick={() => toggleAllBibleSections(false)}
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-[10px] text-slate-400 hover:text-slate-200 border border-slate-800 rounded transition cursor-pointer"
+                      title="Recolher todas as seções da bíblia"
+                    >
+                      Recolher Todas
                     </button>
                   </div>
-                  <p className="text-slate-300 leading-relaxed whitespace-pre-line font-mono text-[11px]">
-                    {selectedCampaign.system?.coreMechanics || 'Rolagens de D20 e validações contra regras do cenário.'}
-                  </p>
-                  {selectedCampaign.system?.statsAndAttributes && (
-                    <div className="pt-2 border-t border-slate-800/80 text-[10px] text-slate-400">
-                      <strong className="text-slate-300">Atributos & Cálculos:</strong>
-                      <p className="mt-0.5 font-mono">{selectedCampaign.system.statsAndAttributes}</p>
+                </div>
+
+                {/* Seção 1: Sistema de Regras & Arbitragem */}
+                <div className="p-3 bg-slate-950/70 rounded-lg border border-amber-500/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => toggleBibleSection('system')}
+                      className="font-semibold text-amber-300 flex items-center gap-1.5 hover:text-amber-200 transition cursor-pointer text-left"
+                    >
+                      <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span>Sistema: {selectedCampaign.system?.name || 'Regras Padrão'}</span>
+                      {expandedBibleSections.system ? (
+                        <ChevronUp className="w-3.5 h-3.5 text-amber-400 ml-1" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-500 ml-1" />
+                      )}
+                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => {
+                          const fullRules = [
+                            selectedCampaign.system?.name ? `Sistema: ${selectedCampaign.system.name}` : '',
+                            selectedCampaign.system?.coreMechanics || '',
+                            selectedCampaign.system?.statsAndAttributes ? `Atributos: ${selectedCampaign.system.statsAndAttributes}` : '',
+                            selectedCampaign.system?.rollInstructions ? `Instruções de Rolagem: ${selectedCampaign.system.rollInstructions}` : ''
+                          ].filter(Boolean).join('\n\n');
+                          handleCopyToClipboard(fullRules, 'bible-system');
+                        }}
+                        className="px-1.5 py-1 text-slate-400 hover:text-amber-300 rounded text-[10px] flex items-center gap-1 transition cursor-pointer"
+                        title="Copiar regras do sistema"
+                      >
+                        {copiedId === 'bible-system' ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-400" />
+                            <span className="text-emerald-400 font-medium">Copiado</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>Copiar</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setRulesSystemName(selectedCampaign.system?.name || '');
+                          setIsRulesModal(true);
+                        }}
+                        className="px-2 py-1 bg-amber-600/30 hover:bg-amber-600 text-amber-300 hover:text-white rounded text-[10px] font-medium flex items-center gap-1 transition cursor-pointer border border-amber-500/40"
+                        title="Importar e compactar manuais (PDF, MD, CSV, TXT) ou texto com IA"
+                      >
+                        <Brain className="w-3 h-3" />
+                        <span>Sintetizar</span>
+                      </button>
                     </div>
-                  )}
-                  {selectedCampaign.system?.rollInstructions && (
-                    <div className="pt-2 border-t border-slate-800/80 text-[10px] text-amber-300/80">
-                      <strong className="text-amber-400">Instruções de Rolagem & DT:</strong>
-                      <p className="mt-0.5 font-mono">{selectedCampaign.system.rollInstructions}</p>
+                  </div>
+
+                  {expandedBibleSections.system ? (
+                    <div className="space-y-2 pt-1 border-t border-slate-800/80 animate-fadeIn">
+                      <p className="text-slate-300 leading-relaxed whitespace-pre-line font-mono text-[11px]">
+                        {selectedCampaign.system?.coreMechanics || 'Rolagens de D20 e validações contra regras do cenário.'}
+                      </p>
+                      {selectedCampaign.system?.statsAndAttributes && (
+                        <div className="pt-2 border-t border-slate-800/80 text-[10px] text-slate-400">
+                          <strong className="text-slate-300">Atributos & Cálculos:</strong>
+                          <p className="mt-0.5 font-mono">{selectedCampaign.system.statsAndAttributes}</p>
+                        </div>
+                      )}
+                      {selectedCampaign.system?.rollInstructions && (
+                        <div className="pt-2 border-t border-slate-800/80 text-[10px] text-amber-300/80">
+                          <strong className="text-amber-400">Instruções de Rolagem & DT:</strong>
+                          <p className="mt-0.5 font-mono">{selectedCampaign.system.rollInstructions}</p>
+                        </div>
+                      )}
                     </div>
+                  ) : (
+                    <p className="text-slate-500 text-[10px] italic line-clamp-1">
+                      {selectedCampaign.system?.coreMechanics || 'Rolagens de D20 e validações contra regras do cenário.'}
+                    </p>
                   )}
                 </div>
 
-
-                {/* Personagem do Jogador */}
+                {/* Seção 2: Personagem do Jogador */}
                 <div className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/80 space-y-2">
-                  <span className="font-semibold text-slate-300 block mb-1">🧙 Personagem do Jogador (PJ)</span>
-                  <p className="text-slate-400 leading-relaxed whitespace-pre-line text-[11px]">
-                    {selectedCampaign.bible?.playerCharacter || 'Não especificado ainda.'}
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => toggleBibleSection('character')}
+                      className="font-semibold text-slate-300 flex items-center gap-1.5 hover:text-amber-300 transition cursor-pointer text-left"
+                    >
+                      <span>🧙 Personagem do Jogador (PJ)</span>
+                      {expandedBibleSections.character ? (
+                        <ChevronUp className="w-3.5 h-3.5 text-amber-400 ml-1" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-500 ml-1" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const pjContent = [
+                          selectedCampaign.bible?.playerCharacter || '',
+                          selectedCampaign.bible?.characterAttributes ? `Atributos:\n${selectedCampaign.bible.characterAttributes}` : ''
+                        ].filter(Boolean).join('\n\n');
+                        handleCopyToClipboard(pjContent, 'bible-character');
+                      }}
+                      className="px-1.5 py-1 text-slate-400 hover:text-amber-300 rounded text-[10px] flex items-center gap-1 transition cursor-pointer"
+                      title="Copiar dados do personagem"
+                    >
+                      {copiedId === 'bible-character' ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-400" />
+                          <span className="text-emerald-400 font-medium">Copiado</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Copiar</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
 
-                  {/* Atributos Formatados em Tags/Cards */}
-                  {selectedCampaign.bible?.characterAttributes && (
-                    <div className="pt-2 border-t border-slate-800/80">
-                      <span className="text-[10px] font-semibold text-amber-400 block mb-1.5 uppercase tracking-wider">
-                        Atributos & Estatísticas Ativas:
-                      </span>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {selectedCampaign.bible.characterAttributes.split('\n').filter(Boolean).map((attrLine, idx) => {
-                          const [name, ...valParts] = attrLine.split(':');
-                          const val = valParts.join(':').trim();
-                          return (
-                            <div key={idx} className="bg-slate-900/90 border border-slate-800 rounded px-2 py-1 flex items-center justify-between">
-                              <span className="text-slate-300 font-medium text-[11px] truncate">{name.trim()}</span>
-                              <span className="text-amber-400 font-mono font-bold text-[11px] ml-1 shrink-0">{val || '—'}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
+                  {expandedBibleSections.character ? (
+                    <div className="space-y-2 pt-1 border-t border-slate-800/80 animate-fadeIn">
+                      <p className="text-slate-400 leading-relaxed whitespace-pre-line text-[11px]">
+                        {selectedCampaign.bible?.playerCharacter || 'Não especificado ainda.'}
+                      </p>
+
+                      {/* Atributos Formatados em Tags/Cards */}
+                      {selectedCampaign.bible?.characterAttributes && (
+                        <div className="pt-2 border-t border-slate-800/80">
+                          <span className="text-[10px] font-semibold text-amber-400 block mb-1.5 uppercase tracking-wider">
+                            Atributos & Estatísticas Ativas:
+                          </span>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {selectedCampaign.bible.characterAttributes.split('\n').filter(Boolean).map((attrLine, idx) => {
+                              const [name, ...valParts] = attrLine.split(':');
+                              const val = valParts.join(':').trim();
+                              return (
+                                <div key={idx} className="bg-slate-900/90 border border-slate-800 rounded px-2 py-1 flex items-center justify-between">
+                                  <span className="text-slate-300 font-medium text-[11px] truncate">{name.trim()}</span>
+                                  <span className="text-amber-400 font-mono font-bold text-[11px] ml-1 shrink-0">{val || '—'}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
+                  ) : (
+                    <p className="text-slate-500 text-[10px] italic line-clamp-1">
+                      {selectedCampaign.bible?.playerCharacter || 'Não especificado ainda.'}
+                    </p>
                   )}
                 </div>
 
-                {/* Lore do Mundo */}
-                <div className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/80">
-                  <span className="font-semibold text-slate-300 block mb-1">🗺️ Lore do Mundo</span>
-                  <p className="text-slate-400 leading-relaxed whitespace-pre-line">
-                    {selectedCampaign.bible?.worldLore || 'Sem registros detalhados de lore.'}
-                  </p>
+                {/* Seção 3: Lore do Mundo */}
+                <div className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => toggleBibleSection('lore')}
+                      className="font-semibold text-slate-300 flex items-center gap-1.5 hover:text-amber-300 transition cursor-pointer text-left"
+                    >
+                      <span>🗺️ Lore do Mundo</span>
+                      {expandedBibleSections.lore ? (
+                        <ChevronUp className="w-3.5 h-3.5 text-amber-400 ml-1" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-500 ml-1" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleCopyToClipboard(selectedCampaign.bible?.worldLore || '', 'bible-lore');
+                      }}
+                      className="px-1.5 py-1 text-slate-400 hover:text-amber-300 rounded text-[10px] flex items-center gap-1 transition cursor-pointer"
+                      title="Copiar lore do mundo"
+                    >
+                      {copiedId === 'bible-lore' ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-400" />
+                          <span className="text-emerald-400 font-medium">Copiado</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Copiar</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {expandedBibleSections.lore ? (
+                    <div className="pt-1 border-t border-slate-800/80 animate-fadeIn">
+                      <p className="text-slate-400 leading-relaxed whitespace-pre-line text-[11px]">
+                        {selectedCampaign.bible?.worldLore || 'Sem registros detalhados de lore.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-slate-500 text-[10px] italic line-clamp-1">
+                      {selectedCampaign.bible?.worldLore || 'Sem registros detalhados de lore.'}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
