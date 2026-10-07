@@ -84,12 +84,18 @@ public class ContextBuilderService {
         // NPCs Cristalizados
         List<Npc> crystallizedNpcs = npcRepository.findByCampaignIdAndIsCrystallizedTrue(campaign.getId());
         if (!crystallizedNpcs.isEmpty()) {
-            sb.append("=== NPCS CONHECIDOS & CRISTALIZADOS ===\n");
+            sb.append("=== NPCS CONHECIDOS & CRISTALIZADOS (FICHAS E ATRIBUTOS) ===\n");
             for (Npc npc : crystallizedNpcs) {
-                sb.append("- ").append(npc.getName()).append(" (").append(npc.getRole() != null ? npc.getRole() : "Personagem").append("): ");
-                if (npc.getPersonality() != null) sb.append("Personalidade: ").append(npc.getPersonality()).append(". ");
-                if (npc.getMemory() != null) sb.append("Memória com o jogador: ").append(npc.getMemory());
-                sb.append("\n");
+                sb.append("- ").append(npc.getName()).append(" (").append(npc.getRole() != null ? npc.getRole() : "Personagem").append("):\n");
+                if (npc.getAttributes() != null && !npc.getAttributes().isBlank()) {
+                    sb.append("  * Atributos & Estatísticas: ").append(npc.getAttributes()).append("\n");
+                }
+                if (npc.getPersonality() != null && !npc.getPersonality().isBlank()) {
+                    sb.append("  * Personalidade: ").append(npc.getPersonality()).append("\n");
+                }
+                if (npc.getMemory() != null && !npc.getMemory().isBlank()) {
+                    sb.append("  * Memória/Relação com o jogador: ").append(npc.getMemory()).append("\n");
+                }
             }
             sb.append("\n");
         }

@@ -46,6 +46,14 @@ public class NpcController {
         return ResponseEntity.ok(npcService.updateNpc(npcId, request));
     }
 
+    @PostMapping("/{npcId}/evolve")
+    public ResponseEntity<NpcDto.Response> evolveNpc(
+            @PathVariable UUID campaignId,
+            @PathVariable UUID npcId,
+            @Valid @RequestBody NpcDto.EvolveRequest request) {
+        return ResponseEntity.ok(npcService.evolveNpcWithAi(campaignId, npcId, request));
+    }
+
     @PatchMapping("/{npcId}/crystallize")
     public ResponseEntity<NpcDto.Response> toggleCrystallize(
             @PathVariable UUID campaignId,

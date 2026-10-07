@@ -230,6 +230,8 @@ export const api = {
     description?: string;
     personality?: string;
     memory?: string;
+    imageUrl?: string;
+    attributes?: string;
     isCrystallized?: boolean;
   }): Promise<Npc> {
     const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/npcs`, {
@@ -241,10 +243,40 @@ export const api = {
     return res.json();
   },
 
+  async updateNpc(campaignId: string, npcId: string, data: {
+    name?: string;
+    role?: string;
+    description?: string;
+    personality?: string;
+    memory?: string;
+    imageUrl?: string;
+    attributes?: string;
+    isCrystallized?: boolean;
+  }): Promise<Npc> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/npcs/${npcId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Falha ao atualizar NPC');
+    return res.json();
+  },
+
+  async evolveNpc(campaignId: string, npcId: string, eventDescription: string): Promise<Npc> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/npcs/${npcId}/evolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventDescription })
+    });
+    if (!res.ok) throw new Error('Falha ao evoluir NPC com IA');
+    return res.json();
+  },
+
   async generateNpcWithAi(campaignId: string, data: {
     concept?: string;
     type?: string;
     challengeLevel?: string;
+    imageUrl?: string;
   }): Promise<Npc> {
     const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/npcs/generate-with-ai`, {
       method: 'POST',

@@ -70,6 +70,8 @@ export interface Npc {
   description?: string;
   personality?: string;
   memory?: string;
+  imageUrl?: string;
+  attributes?: string;
   isCrystallized: boolean;
   createdAt: string;
 }

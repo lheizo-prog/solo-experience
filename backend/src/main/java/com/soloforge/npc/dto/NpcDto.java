@@ -17,6 +17,8 @@ public class NpcDto {
         private String description;
         private String personality;
         private String memory;
+        private String imageUrl;
+        private String attributes;
         private Boolean isCrystallized;
     }
 
@@ -25,6 +27,7 @@ public class NpcDto {
         private String concept; // ex: "Lorde vampiro que governa a fortaleza nas sombras"
         private String type;    // "BOSS", "MINION", "ALLY", "RIVAL", "MERCHANT"
         private String challengeLevel; // "EASY", "MEDIUM", "HARD", "DEADLY", "LEGENDARY"
+        private String imageUrl;
     }
 
     @Data
@@ -34,7 +37,15 @@ public class NpcDto {
         private String description;
         private String personality;
         private String memory;
+        private String imageUrl;
+        private String attributes;
         private Boolean isCrystallized;
+    }
+
+    @Data
+    public static class EvolveRequest {
+        @NotBlank(message = "A descrição do evento ou evolução é obrigatória")
+        private String eventDescription;
     }
 
     @Data
@@ -47,6 +58,8 @@ public class NpcDto {
         private String description;
         private String personality;
         private String memory;
+        private String imageUrl;
+        private String attributes;
         private Boolean isCrystallized;
         private LocalDateTime createdAt;
     }

@@ -40,6 +40,12 @@ public class Npc {
     @Column(columnDefinition = "TEXT")
     private String memory;
 
+    @Column(name = "image_url", columnDefinition = "TEXT")
+    private String imageUrl;
+
+    @Column(columnDefinition = "TEXT")
+    private String attributes;
+
     @Column(name = "is_crystallized", nullable = false)
     @Builder.Default
     private Boolean isCrystallized = false; // false = passageiro, true = persistido no contexto central

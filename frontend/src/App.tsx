@@ -31,7 +31,9 @@ import {
   LogOut,
   SlidersHorizontal,
   Download,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Edit,
+  Zap
 } from 'lucide-react';
 
 import { LoginScreen } from './components/LoginScreen';
@@ -97,12 +99,29 @@ export function App() {
   const [newNpcRole, setNewNpcRole] = useState('');
   const [newNpcPersonality, setNewNpcPersonality] = useState('');
   const [newNpcMemory, setNewNpcMemory] = useState('');
+  const [newNpcImageUrl, setNewNpcImageUrl] = useState('');
+  const [newNpcAttributes, setNewNpcAttributes] = useState('');
+
+  // Edição Manual de NPC
+  const [editingNpc, setEditingNpc] = useState<Npc | null>(null);
+  const [editNpcName, setEditNpcName] = useState('');
+  const [editNpcRole, setEditNpcRole] = useState('');
+  const [editNpcPersonality, setEditNpcPersonality] = useState('');
+  const [editNpcMemory, setEditNpcMemory] = useState('');
+  const [editNpcImageUrl, setEditNpcImageUrl] = useState('');
+  const [editNpcAttributes, setEditNpcAttributes] = useState('');
+
+  // Evolução de NPC por Evento com IA
+  const [evolvingNpc, setEvolvingNpc] = useState<Npc | null>(null);
+  const [evolveEventText, setEvolveEventText] = useState('');
+  const [isEvolvingNpc, setIsEvolvingNpc] = useState(false);
 
   // Gerador de NPC/Boss com IA
   const [isAiNpcModal, setIsAiNpcModal] = useState(false);
   const [aiNpcConcept, setAiNpcConcept] = useState('');
   const [aiNpcType, setAiNpcType] = useState<'BOSS' | 'MINION' | 'ALLY' | 'RIVAL' | 'MERCHANT'>('BOSS');
   const [aiNpcChallenge, setAiNpcChallenge] = useState<'FÁCIL' | 'MÉDIO' | 'DIFÍCIL' | 'MORTAL' | 'LENDÁRIO'>('DIFÍCIL');
+  const [aiNpcImageUrl, setAiNpcImageUrl] = useState('');
   const [isGeneratingAiNpc, setIsGeneratingAiNpc] = useState(false);
 
 
@@ -585,6 +604,8 @@ export function App() {
         role: newNpcRole,
         personality: newNpcPersonality,
         memory: newNpcMemory,
+        imageUrl: newNpcImageUrl.trim() || undefined,
+        attributes: newNpcAttributes.trim() || undefined,
         isCrystallized: true
       });
       setNpcs(prev => [created, ...prev]);
@@ -593,6 +614,8 @@ export function App() {
       setNewNpcRole('');
       setNewNpcPersonality('');
       setNewNpcMemory('');
+      setNewNpcImageUrl('');
+      setNewNpcAttributes('');
     } catch {
       const mockNpc: Npc = {
         id: 'npc-' + Date.now(),
@@ -601,6 +624,8 @@ export function App() {
         role: newNpcRole || 'Habitante',
         personality: newNpcPersonality,
         memory: newNpcMemory,
+        imageUrl: newNpcImageUrl.trim() || undefined,
+        attributes: newNpcAttributes.trim() || undefined,
         isCrystallized: true,
         createdAt: new Date().toISOString()
       };
@@ -610,6 +635,8 @@ export function App() {
       setNewNpcRole('');
       setNewNpcPersonality('');
       setNewNpcMemory('');
+      setNewNpcImageUrl('');
+      setNewNpcAttributes('');
     }
   };
 
@@ -622,15 +649,79 @@ export function App() {
       const generated = await api.generateNpcWithAi(selectedCampaign.id, {
         concept: aiNpcConcept.trim() || undefined,
         type: aiNpcType,
-        challengeLevel: aiNpcChallenge
+        challengeLevel: aiNpcChallenge,
+        imageUrl: aiNpcImageUrl.trim() || undefined
       });
       setNpcs(prev => [generated, ...prev]);
       setIsAiNpcModal(false);
       setAiNpcConcept('');
+      setAiNpcImageUrl('');
     } catch (err: unknown) {
       alert('Erro ao forjar NPC com a IA: ' + (err instanceof Error ? err.message : 'Falha na conexão'));
     } finally {
       setIsGeneratingAiNpc(false);
+    }
+  };
+
+  const handleOpenEditNpc = (npc: Npc) => {
+    setEditingNpc(npc);
+    setEditNpcName(npc.name);
+    setEditNpcRole(npc.role || '');
+    setEditNpcPersonality(npc.personality || '');
+    setEditNpcMemory(npc.memory || '');
+    setEditNpcImageUrl(npc.imageUrl || '');
+    setEditNpcAttributes(npc.attributes || '');
+  };
+
+  const handleSaveEditNpc = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCampaign || !editingNpc) return;
+
+    try {
+      const updated = await api.updateNpc(selectedCampaign.id, editingNpc.id, {
+        name: editNpcName,
+        role: editNpcRole,
+        personality: editNpcPersonality,
+        memory: editNpcMemory,
+        imageUrl: editNpcImageUrl.trim() || undefined,
+        attributes: editNpcAttributes.trim() || undefined
+      });
+      setNpcs(prev => prev.map(n => n.id === editingNpc.id ? updated : n));
+      setEditingNpc(null);
+    } catch {
+      // Fallback otimista
+      setNpcs(prev => prev.map(n => n.id === editingNpc.id ? {
+        ...n,
+        name: editNpcName,
+        role: editNpcRole,
+        personality: editNpcPersonality,
+        memory: editNpcMemory,
+        imageUrl: editNpcImageUrl,
+        attributes: editNpcAttributes
+      } : n));
+      setEditingNpc(null);
+    }
+  };
+
+  const handleOpenEvolveNpc = (npc: Npc) => {
+    setEvolvingNpc(npc);
+    setEvolveEventText('');
+  };
+
+  const handleEvolveNpc = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCampaign || !evolvingNpc || !evolveEventText.trim() || isEvolvingNpc) return;
+
+    setIsEvolvingNpc(true);
+    try {
+      const evolved = await api.evolveNpc(selectedCampaign.id, evolvingNpc.id, evolveEventText.trim());
+      setNpcs(prev => prev.map(n => n.id === evolvingNpc.id ? evolved : n));
+      setEvolvingNpc(null);
+      setEvolveEventText('');
+    } catch (err: unknown) {
+      alert('Erro ao evoluir NPC com IA: ' + (err instanceof Error ? err.message : 'Falha na conexão'));
+    } finally {
+      setIsEvolvingNpc(false);
     }
   };
 
@@ -1464,22 +1555,66 @@ export function App() {
                           : 'bg-slate-950/40 border-slate-800/80 opacity-70'
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-semibold text-slate-200 text-xs">
-                              {npc.name}
-                            </span>
-                            <span className="text-[10px] text-amber-400 px-1.5 py-0.2 rounded bg-amber-950/60 border border-amber-900/40">
-                              {npc.role || 'Personagem'}
-                            </span>
+                      <div className="flex items-start justify-between gap-2.5">
+                        <div className="flex items-center gap-2.5">
+                          {/* Avatar / Imagem com Fallback Temático */}
+                          <div className="w-10 h-10 rounded-full border border-amber-500/40 bg-slate-900 shrink-0 overflow-hidden flex items-center justify-center shadow-inner relative group">
+                            {npc.imageUrl ? (
+                              <img 
+                                src={npc.imageUrl} 
+                                alt={npc.name} 
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  // Fallback se imagem quebrar
+                                  (e.target as HTMLElement).style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <span className="text-amber-400 font-bold text-xs uppercase">
+                                {npc.name.slice(0, 2)}
+                              </span>
+                            )}
+                          </div>
+
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-semibold text-slate-200 text-xs">
+                                {npc.name}
+                              </span>
+                              <span className="text-[10px] text-amber-400 px-1.5 py-0.2 rounded bg-amber-950/60 border border-amber-900/40">
+                                {npc.role || 'Personagem'}
+                              </span>
+                            </div>
+                            {npc.description && (
+                              <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">
+                                {npc.description}
+                              </p>
+                            )}
                           </div>
                         </div>
 
                         <div className="flex items-center gap-1 shrink-0">
+                          {/* Botão de Evoluir por Evento com IA */}
+                          <button
+                            onClick={() => handleOpenEvolveNpc(npc)}
+                            className="p-1 text-amber-400 hover:text-amber-300 hover:bg-amber-950/40 rounded transition cursor-pointer"
+                            title="Evoluir Atributos por Evento (IA)"
+                          >
+                            <Zap className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Botão de Editar Ficha/Imagem */}
+                          <button
+                            onClick={() => handleOpenEditNpc(npc)}
+                            className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded transition cursor-pointer"
+                            title="Editar Atributos & Imagem"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+
                           <button
                             onClick={() => handleToggleCrystallize(npc)}
-                            className={`px-2 py-0.5 rounded text-[10px] font-medium flex items-center gap-1 transition cursor-pointer ${
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex items-center gap-1 transition cursor-pointer ${
                               npc.isCrystallized
                                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                                 : 'bg-slate-800 text-slate-400 hover:text-slate-200'
@@ -1487,7 +1622,7 @@ export function App() {
                             title={npc.isCrystallized ? "Cristalizado no Contexto do Mestre" : "Passageiro (não injetado)"}
                           >
                             <Sparkle className="w-3 h-3 text-amber-400" />
-                            <span>{npc.isCrystallized ? 'Cristalizado' : 'Passageiro'}</span>
+                            <span className="hidden sm:inline">{npc.isCrystallized ? 'Cristalizado' : 'Passageiro'}</span>
                           </button>
 
                           <button
@@ -1499,6 +1634,17 @@ export function App() {
                           </button>
                         </div>
                       </div>
+
+                      {/* Exibição dos Atributos do NPC */}
+                      {npc.attributes && (
+                        <div className="bg-slate-900/90 rounded border border-amber-950/60 p-2 text-[11px] font-mono text-amber-200/90 leading-tight">
+                          <div className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-amber-500 font-sans font-semibold mb-1">
+                            <Sword className="w-3 h-3" />
+                            <span>Atributos & Combate:</span>
+                          </div>
+                          <span className="whitespace-pre-wrap">{npc.attributes}</span>
+                        </div>
+                      )}
 
                       {npc.personality && (
                         <p className="text-slate-300 text-[11px] leading-relaxed">
@@ -1807,6 +1953,38 @@ export function App() {
               </div>
 
               <div>
+                <label className="block text-slate-300 font-medium mb-1">URL da Imagem / Avatar (Opcional)</label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="url"
+                    placeholder="https://exemplo.com/avatar.jpg"
+                    value={newNpcImageUrl}
+                    onChange={e => setNewNpcImageUrl(e.target.value)}
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500"
+                  />
+                  {newNpcImageUrl && (
+                    <img 
+                      src={newNpcImageUrl} 
+                      alt="Preview" 
+                      className="w-8 h-8 rounded-full border border-amber-500/50 object-cover" 
+                      onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Atributos / Ficha de Combate</label>
+                <textarea
+                  rows={2}
+                  placeholder="Ex: FOR: 16 | DES: 12 | CON: 14 | PV: 35/35 | CA: 15 | Martelo Pesado (1d8+3)"
+                  value={newNpcAttributes}
+                  onChange={e => setNewNpcAttributes(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500 font-mono text-[11px]"
+                />
+              </div>
+
+              <div>
                 <label className="block text-slate-300 font-medium mb-1">Traços de Personalidade</label>
                 <textarea
                   rows={2}
@@ -1917,6 +2095,18 @@ export function App() {
                 </div>
               </div>
 
+              {/* Imagem Opcional */}
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">URL da Imagem / Avatar (Opcional)</label>
+                <input
+                  type="url"
+                  placeholder="https://exemplo.com/monstro.jpg"
+                  value={aiNpcImageUrl}
+                  onChange={e => setAiNpcImageUrl(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500 placeholder-slate-500 text-xs"
+                />
+              </div>
+
               {/* Conceito / Inspiração */}
               <div>
                 <label className="block text-slate-300 font-medium mb-1">
@@ -1953,6 +2143,202 @@ export function App() {
                     <>
                       <Sparkles className="w-3.5 h-3.5" />
                       <span>Forjar com IA Agora</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDITAR FICHA E IMAGEM DO NPC */}
+      {editingNpc && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-xl p-5 shadow-2xl space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <h3 className="text-base font-bold text-amber-400 flex items-center gap-2">
+                <Edit className="w-4 h-4" />
+                Editar Personagem / Ficha
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingNpc(null)}
+                className="text-slate-400 hover:text-slate-200 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditNpc} className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Nome *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editNpcName}
+                    onChange={e => setEditNpcName(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Papel / Título</label>
+                  <input
+                    type="text"
+                    value={editNpcRole}
+                    onChange={e => setEditNpcRole(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">URL da Imagem / Avatar</label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="url"
+                    placeholder="https://exemplo.com/avatar.jpg"
+                    value={editNpcImageUrl}
+                    onChange={e => setEditNpcImageUrl(e.target.value)}
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500"
+                  />
+                  {editNpcImageUrl && (
+                    <img 
+                      src={editNpcImageUrl} 
+                      alt="Preview" 
+                      className="w-8 h-8 rounded-full border border-amber-500/50 object-cover" 
+                      onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Atributos & Combate (Estatísticas)</label>
+                <textarea
+                  rows={3}
+                  placeholder="FOR: 18 | DES: 14 | CON: 16 | PV: 50/50 | CA: 16..."
+                  value={editNpcAttributes}
+                  onChange={e => setEditNpcAttributes(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500 font-mono text-[11px]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Personalidade</label>
+                <textarea
+                  rows={2}
+                  value={editNpcPersonality}
+                  onChange={e => setEditNpcPersonality(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Memória / Relação com o Jogador</label>
+                <textarea
+                  rows={2}
+                  value={editNpcMemory}
+                  onChange={e => setEditNpcMemory(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingNpc(null)}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded font-medium cursor-pointer"
+                >
+                  Salvar Alterações
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EVOLUIR NPC POR EVENTO NARRATIVO COM IA */}
+      {evolvingNpc && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-amber-500/50 w-full max-w-md rounded-xl p-5 shadow-2xl space-y-3.5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full border border-amber-500/40 bg-slate-950 overflow-hidden flex items-center justify-center">
+                  {evolvingNpc.imageUrl ? (
+                    <img src={evolvingNpc.imageUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <Zap className="w-4 h-4 text-amber-400" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-amber-400 flex items-center gap-1.5">
+                    Evolução Narrativa com IA
+                  </h3>
+                  <p className="text-[11px] text-slate-300">{evolvingNpc.name} ({evolvingNpc.role || 'Personagem'})</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEvolvingNpc(null)}
+                className="text-slate-400 hover:text-slate-200 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-2.5 bg-slate-950/80 rounded border border-slate-800 text-[11px] space-y-1">
+              <span className="text-amber-500 font-semibold uppercase text-[10px] tracking-wider block">Atributos Atuais:</span>
+              <p className="font-mono text-slate-300">{evolvingNpc.attributes || 'Nenhum atributo registrado ainda.'}</p>
+            </div>
+
+            <form onSubmit={handleEvolveNpc} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-slate-200 font-medium mb-1">
+                  O que aconteceu a este personagem na história? *
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  placeholder="Ex: 'Sobreviveu à forja dos dragões nas profundezas e absorveu uma lâmina rúnica.' ou 'Derrotou o rival na arena e subiu de nível.' ou 'Perdeu um braço na emboscada.'"
+                  value={evolveEventText}
+                  onChange={e => setEvolveEventText(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded p-2.5 text-slate-100 outline-none focus:border-amber-500 text-xs placeholder-slate-500"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  A IA recalculará os atributos, bônus, cicatrizes e memórias respeitando as regras do sistema ({selectedCampaign?.system?.name || 'Sistema Atual'}).
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEvolvingNpc(null)}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isEvolvingNpc || !evolveEventText.trim()}
+                  className="px-4 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:opacity-50 text-white rounded font-medium flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed shadow-md shadow-amber-900/30"
+                >
+                  {isEvolvingNpc ? (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                      <span>Recalculando Atributos...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>Evoluir Atributos com IA</span>
                     </>
                   )}
                 </button>
