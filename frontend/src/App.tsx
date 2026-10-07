@@ -1068,14 +1068,32 @@ export function App() {
   };
 
   const cleanDisplayContent = (content: string) => {
+    if (!content) return '';
+
+    // 1. Se contiver a tag <narrativa>...</narrativa>, extrai puramente o interior
+    const xmlMatch = content.match(/<narrativa>([\s\S]*?)(?:<\/narrativa>|$)/i);
+    if (xmlMatch && xmlMatch[1]?.trim()) {
+      return xmlMatch[1].replace(/\[PEDIR_TESTE:[^\]]+\]/g, '').trim();
+    }
+
+    // 2. Se contiver [NARRATIVA]...[/NARRATIVA]
+    const bracketMatch = content.match(/\[NARRATIVA\]([\s\S]*?)(?:\[\/NARRATIVA\]|$)/i);
+    if (bracketMatch && bracketMatch[1]?.trim()) {
+      return bracketMatch[1].replace(/\[PEDIR_TESTE:[^\]]+\]/g, '').trim();
+    }
+
     let cleaned = content.replace(/\[PEDIR_TESTE:[^\]]+\]/g, '').trim();
 
-    // Se o modelo vazou rascunho de planejamento e colocou um marcador de cena (ex: *Cena:* ou Cena:),
-    // exibimos diretamente o conteúdo a partir da cena limpa.
-    const sceneMarkerRegex = /(\*(?:Cena|A Cena|Narrativa)\*|\b(?:Cena|Narrativa):\s*)/i;
-    const match = cleaned.match(sceneMarkerRegex);
-    if (match && match.index !== undefined && match.index > 50) {
-      cleaned = cleaned.substring(match.index + match[0].length).trim();
+    // 3. Corte de cabeçalhos de rascunho (*Drafting response:*, *Cena:*, etc.)
+    const startMatch = cleaned.match(/(?:\*(?:Drafting response|Cena|A Cena|Narrativa)\*|\b(?:Drafting response|Cena|Narrativa):\s*)/i);
+    if (startMatch && startMatch.index !== undefined && startMatch.index > 20) {
+      cleaned = cleaned.substring(startMatch.index + startMatch[0].length).trim();
+    }
+
+    // 4. Corte de checklists finais (*Check against rules:*, *Final Polish.*, etc.)
+    const endMatch = cleaned.match(/(?:\*(?:Check against rules|Final Polish|Auto-correção|Self-correction)\*|\b(?:Check against rules|Notes):)/i);
+    if (endMatch && endMatch.index !== undefined) {
+      cleaned = cleaned.substring(0, endMatch.index).trim();
     }
 
     return cleaned;

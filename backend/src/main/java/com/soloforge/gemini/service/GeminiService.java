@@ -13,6 +13,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @Slf4j
@@ -176,7 +178,8 @@ public class GeminiService {
                     JsonNode parts = candidate.path("content").path("parts");
                     if (parts.isArray() && !parts.isEmpty()) {
                         log.info("Gemini respondeu com sucesso usando o modelo: {}", modelToTry);
-                        return parts.get(0).path("text").asText();
+                        String rawText = parts.get(0).path("text").asText();
+                        return extractPlayerNarrative(rawText);
                     }
                 }
                 return "O Mestre permanece em silêncio contemplando o destino...";
@@ -188,6 +191,55 @@ public class GeminiService {
 
         log.error("Todos os modelos candidatos do Gemini falharam", lastException);
         return "Erro ao contatar o oráculo do Gemini: " + (lastException != null ? lastException.getMessage() : "Nenhum modelo respondeu");
+    }
+
+    /**
+     * Extrai cirurgicamente a narração oficial destinada ao jogador, descartando qualquer
+     * scratchpad/pensamento interno, rascunho de bastidores ou checklist de auto-revisão.
+     */
+    public static String extractPlayerNarrative(String rawResponse) {
+        if (rawResponse == null || rawResponse.isBlank()) {
+            return "";
+        }
+
+        // 1. Tenta extrair o bloco estritamente delimitado por <narrativa>...</narrativa>
+        Pattern xmlPattern = Pattern.compile("<narrativa>([\\s\\S]*?)(?:</narrativa>|$)", Pattern.CASE_INSENSITIVE);
+        Matcher xmlMatcher = xmlPattern.matcher(rawResponse);
+        if (xmlMatcher.find()) {
+            String narrative = xmlMatcher.group(1).trim();
+            if (!narrative.isEmpty()) {
+                return narrative;
+            }
+        }
+
+        // 2. Tenta extrair variação entre colchetes [NARRATIVA]...[/NARRATIVA]
+        Pattern bracketPattern = Pattern.compile("\\[NARRATIVA\\]([\\s\\S]*?)(?:\\[/NARRATIVA\\]|$)", Pattern.CASE_INSENSITIVE);
+        Matcher bracketMatcher = bracketPattern.matcher(rawResponse);
+        if (bracketMatcher.find()) {
+            String narrative = bracketMatcher.group(1).trim();
+            if (!narrative.isEmpty()) {
+                return narrative;
+            }
+        }
+
+        // 3. Fallback inteligente: se a IA não utilizou as tags delimitadoras, limpa rascunhos conhecidos
+        String cleaned = rawResponse;
+
+        // Se houver marcador de início da cena (Drafting response:, Cena:, etc.)
+        Pattern startPattern = Pattern.compile("(?i)(\\*(?:Drafting response|Cena|A Cena|Narrativa)\\*|\\b(?:Drafting response|Cena|Narrativa):\\s*)");
+        Matcher startMatcher = startPattern.matcher(cleaned);
+        if (startMatcher.find() && startMatcher.start() > 20) {
+            cleaned = cleaned.substring(startMatcher.end()).trim();
+        }
+
+        // Se houver marcador de checklist de encerramento (Check against rules:, Final Polish, etc.)
+        Pattern endPattern = Pattern.compile("(?i)(\\*(?:Check against rules|Final Polish|Auto-correção|Self-correction)\\*|\\b(?:Check against rules|Notes):)");
+        Matcher endMatcher = endPattern.matcher(cleaned);
+        if (endMatcher.find()) {
+            cleaned = cleaned.substring(0, endMatcher.start()).trim();
+        }
+
+        return cleaned;
     }
 
     /**
