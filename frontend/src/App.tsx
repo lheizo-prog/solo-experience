@@ -98,6 +98,17 @@ export function App() {
   const [freeDiceCount, setFreeDiceCount] = useState<number>(1);
   const [freeDiceBonus, setFreeDiceBonus] = useState<number>(0);
 
+  // Modal de Confirmação e Mensagem de Intenção da Rolagem
+  interface RollConfirmData {
+    sides: number;
+    checkTarget?: PendingCheck;
+    count?: number;
+    mode?: 'NORMAL' | 'ADVANTAGE' | 'DISADVANTAGE';
+    bonus?: number;
+  }
+  const [rollConfirmData, setRollConfirmData] = useState<RollConfirmData | null>(null);
+  const [rollActionMessage, setRollActionMessage] = useState('');
+
   // Painel Central: Abas de Aventura vs Direcionamento de História
   const [mainTab, setMainTab] = useState<'chat' | 'directives'>('chat');
   const [directives, setDirectives] = useState<StoryDirective[]>([]);
@@ -657,13 +668,49 @@ export function App() {
     }
   };
 
+  const openRollConfirmModal = (
+    sides: number,
+    checkTarget?: PendingCheck,
+    count?: number,
+    mode?: 'NORMAL' | 'ADVANTAGE' | 'DISADVANTAGE',
+    bonus?: number
+  ) => {
+    // Se o jogador já tiver digitado algo no input do chat, aproveita como intenção inicial
+    const initialText = inputText.trim();
+    setRollActionMessage(initialText);
+    setRollConfirmData({
+      sides,
+      checkTarget,
+      count: count !== undefined ? count : freeDiceCount,
+      mode: mode || rollMode,
+      bonus: bonus !== undefined ? bonus : (checkTarget ? testBonus : freeDiceBonus)
+    });
+  };
+
+  const executeRollConfirmed = (actionDescription: string) => {
+    if (!rollConfirmData) return;
+    const { sides, checkTarget, count, mode, bonus } = rollConfirmData;
+    rollDice(sides, checkTarget, count, mode, bonus, actionDescription.trim());
+    setRollConfirmData(null);
+    setRollActionMessage('');
+    // Se o texto confirmado era o que estava no input do chat, limpa o input
+    if (inputText.trim() === actionDescription.trim()) {
+      setInputText('');
+    }
+  };
+
   const rollDice = (
     sides: number, 
     checkTarget?: PendingCheck,
     overrideCount?: number,
     overrideMode?: 'NORMAL' | 'ADVANTAGE' | 'DISADVANTAGE',
-    overrideBonus?: number
+    overrideBonus?: number,
+    actionDescription?: string
   ) => {
+    const actionPrefix = actionDescription && actionDescription.trim().length > 0 
+      ? `Ação do Personagem: "${actionDescription.trim()}"\n\n` 
+      : '';
+
     if (checkTarget) {
       const mode = overrideMode || rollMode;
       const bonus = overrideBonus !== undefined ? overrideBonus : testBonus;
@@ -682,7 +729,7 @@ export function App() {
         if (isCrit) outcome = 'SUCESSO CRÍTICO (20 NATURAL)!';
         if (isFumble) outcome = 'FALHA CRÍTICA (1 NATURAL)!';
 
-        const msg = `🎲 [TESTE COM VANTAGEM: ${checkTarget.attribute}]: O jogador rolou 2d${sides} [ ${r1}, ${r2} ] -> Maior: ${highest}${bonusStr} = Total ${total} vs DT ${checkTarget.dc} (${outcome}) para "${checkTarget.reason}".`;
+        const msg = `${actionPrefix}🎲 [TESTE COM VANTAGEM: ${checkTarget.attribute}]: O jogador rolou 2d${sides} [ ${r1}, ${r2} ] -> Maior: ${highest}${bonusStr} = Total ${total} vs DT ${checkTarget.dc} (${outcome}) para "${checkTarget.reason}".`;
         handleSendMessage(msg, true);
       } else if (mode === 'DISADVANTAGE') {
         const r1 = Math.floor(Math.random() * sides) + 1;
@@ -697,7 +744,7 @@ export function App() {
         if (isCrit) outcome = 'SUCESSO CRÍTICO (20 NATURAL)!';
         if (isFumble) outcome = 'FALHA CRÍTICA (1 NATURAL)!';
 
-        const msg = `🎲 [TESTE COM DESVANTAGEM: ${checkTarget.attribute}]: O jogador rolou 2d${sides} [ ${r1}, ${r2} ] -> Menor: ${lowest}${bonusStr} = Total ${total} vs DT ${checkTarget.dc} (${outcome}) para "${checkTarget.reason}".`;
+        const msg = `${actionPrefix}🎲 [TESTE COM DESVANTAGEM: ${checkTarget.attribute}]: O jogador rolou 2d${sides} [ ${r1}, ${r2} ] -> Menor: ${lowest}${bonusStr} = Total ${total} vs DT ${checkTarget.dc} (${outcome}) para "${checkTarget.reason}".`;
         handleSendMessage(msg, true);
       } else {
         const roll = Math.floor(Math.random() * sides) + 1;
@@ -710,7 +757,7 @@ export function App() {
         if (isCrit) outcome = 'SUCESSO CRÍTICO (20 NATURAL)!';
         if (isFumble) outcome = 'FALHA CRÍTICA (1 NATURAL)!';
 
-        const msg = `🎲 [TESTE OFICIAL: ${checkTarget.attribute}]: O jogador rolou 1d${sides} [ ${roll} ]${bonusStr} = Total ${total} vs DT ${checkTarget.dc} (${outcome}) para "${checkTarget.reason}".`;
+        const msg = `${actionPrefix}🎲 [TESTE OFICIAL: ${checkTarget.attribute}]: O jogador rolou 1d${sides} [ ${roll} ]${bonusStr} = Total ${total} vs DT ${checkTarget.dc} (${outcome}) para "${checkTarget.reason}".`;
         handleSendMessage(msg, true);
       }
     } else {
@@ -727,7 +774,7 @@ export function App() {
       const rollsStr = rolls.length > 1 ? `[ ${rolls.join(', ')} ]` : `[ ${rolls[0]} ]`;
       const formula = `${count}d${sides}`;
 
-      const msg = `🎲 [ROLAGEM LIVRE]: Rolou ${formula} ${rollsStr}${bonusStr} = Total ${total}.`;
+      const msg = `${actionPrefix}🎲 [ROLAGEM LIVRE]: Rolou ${formula} ${rollsStr}${bonusStr} = Total ${total}.`;
       handleSendMessage(msg, true);
     }
   };
@@ -2050,7 +2097,7 @@ export function App() {
                 </div>
 
                 <button
-                  onClick={() => rollDice(parseInt(pendingCheck.dice.replace(/\D/g, '') || '20', 10), pendingCheck)}
+                  onClick={() => openRollConfirmModal(parseInt(pendingCheck.dice.replace(/\D/g, '') || '20', 10), pendingCheck, undefined, rollMode, testBonus)}
                   className="w-full min-h-[44px] px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs sm:text-sm rounded-lg flex items-center justify-center gap-2 transition shadow-lg shadow-amber-600/30 cursor-pointer shrink-0"
                 >
                   <Dices className="w-4 sm:w-5 h-4 sm:h-5" />
@@ -2109,7 +2156,7 @@ export function App() {
                   {[4, 6, 8, 10, 12, 20, 100].map(sides => (
                     <button
                       key={sides}
-                      onClick={() => rollDice(sides)}
+                      onClick={() => openRollConfirmModal(sides, undefined, freeDiceCount, 'NORMAL', freeDiceBonus)}
                       disabled={!selectedCampaign || isLoading}
                       className="min-w-[42px] h-[36px] px-2 bg-slate-950 hover:bg-slate-800 active:bg-amber-950/60 disabled:opacity-40 border border-slate-800 hover:border-amber-500/50 rounded-lg text-slate-200 font-mono font-semibold transition text-xs flex items-center justify-center cursor-pointer active:scale-95 text-center shrink-0"
                       title={freeDiceCount > 1 || freeDiceBonus !== 0 ? `Rolar ${freeDiceCount}d${sides}${freeDiceBonus !== 0 ? ` (${freeDiceBonus >= 0 ? `+${freeDiceBonus}` : freeDiceBonus})` : ''}` : `Rolar 1d${sides}`}
@@ -3910,6 +3957,117 @@ export function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMAÇÃO & MENSAGEM DA ROLAGEM DE DADOS */}
+      {rollConfirmData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <Dices className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                    Confirmar Rolagem de Dados
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {rollConfirmData.checkTarget 
+                      ? `Teste Oficial: ${rollConfirmData.checkTarget.attribute} (DT ${rollConfirmData.checkTarget.dc})`
+                      : `Rolagem Livre: ${rollConfirmData.count || 1}d${rollConfirmData.sides}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setRollConfirmData(null); setRollActionMessage(''); }}
+                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center cursor-pointer transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Conteúdo & Detalhes da Rolagem */}
+            <div className="p-4 sm:p-5 space-y-4">
+              {/* Badge de Resumo da Rolagem */}
+              <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] text-slate-400 block font-medium">Mecânica / Fórmula</span>
+                  <span className="text-sm font-mono font-bold text-amber-400">
+                    {rollConfirmData.checkTarget ? (
+                      <>
+                        {rollConfirmData.mode === 'ADVANTAGE' ? `2${rollConfirmData.checkTarget.dice} (Vantagem)` : rollConfirmData.mode === 'DISADVANTAGE' ? `2${rollConfirmData.checkTarget.dice} (Desvantagem)` : `1${rollConfirmData.checkTarget.dice}`}
+                        {(rollConfirmData.bonus || 0) !== 0 ? ` ${(rollConfirmData.bonus || 0) > 0 ? '+' : ''}${rollConfirmData.bonus}` : ''}
+                        <span className="text-slate-400 font-sans text-xs ml-1.5">vs DT {rollConfirmData.checkTarget.dc}</span>
+                      </>
+                    ) : (
+                      <>
+                        {rollConfirmData.count || 1}d{rollConfirmData.sides}
+                        {(rollConfirmData.bonus || 0) !== 0 ? ` ${(rollConfirmData.bonus || 0) > 0 ? '+' : ''}${rollConfirmData.bonus}` : ''}
+                      </>
+                    )}
+                  </span>
+                </div>
+
+                {rollConfirmData.checkTarget && (
+                  <div className="text-right max-w-[200px]">
+                    <span className="text-[10px] text-slate-400 block font-medium">Motivo / Desafio</span>
+                    <span className="text-xs text-slate-200 line-clamp-1 italic" title={rollConfirmData.checkTarget.reason}>
+                      "{rollConfirmData.checkTarget.reason}"
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Campo Obrigatório da Mensagem de Ação */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                    <span>Descreva a ação / fala do seu personagem</span>
+                    <span className="text-amber-400 text-[11px] font-normal">*Obrigatório</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">
+                    A IA avaliará essa narrativa junto ao resultado
+                  </span>
+                </div>
+                <textarea
+                  autoFocus
+                  rows={3}
+                  value={rollActionMessage}
+                  onChange={(e) => setRollActionMessage(e.target.value)}
+                  placeholder={
+                    rollConfirmData.checkTarget
+                      ? `Ex: Firma os pés no chão, aperta o bastão e tenta ${rollConfirmData.checkTarget.reason.toLowerCase()} com determinação...`
+                      : "Ex: Descreva o golpe, o feitiço ou a tentativa que motivou esta rolagem..."
+                  }
+                  className="w-full bg-slate-950 border border-slate-700/80 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl p-3 text-sm text-slate-100 placeholder-slate-500 outline-none transition"
+                />
+              </div>
+            </div>
+
+            {/* Footer com Ações */}
+            <div className="p-4 border-t border-slate-800 bg-slate-950/60 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => { setRollConfirmData(null); setRollActionMessage(''); }}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs sm:text-sm font-medium transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!rollActionMessage.trim()}
+                onClick={() => executeRollConfirmed(rollActionMessage)}
+                className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-slate-950 font-bold rounded-xl text-xs sm:text-sm flex items-center gap-2 transition shadow-lg shadow-amber-600/20 cursor-pointer disabled:cursor-not-allowed"
+              >
+                <Dices className="w-4 h-4" />
+                <span>Confirmar e Rolar Dados</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
