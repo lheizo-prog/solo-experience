@@ -160,12 +160,12 @@ public class GeminiService {
         }
         requestBody.put("contents", contents);
 
-        // Generation config (calibração de criatividade e teto expandido de 8192 tokens com pensamento irrestrito)
+        // Generation config: sem estrangulamento de tokens (teto máximo de 65536 para suportar raciocínio profundo e narração completa)
         Map<String, Object> baseGenConfig = new HashMap<>();
         baseGenConfig.put("temperature", 0.8);
         baseGenConfig.put("topP", 0.95);
         baseGenConfig.put("topK", 40);
-        baseGenConfig.put("maxOutputTokens", 8192);
+        baseGenConfig.put("maxOutputTokens", 65536);
 
         Exception lastException = null;
         for (String modelToTry : getCandidateModels()) {
@@ -300,9 +300,9 @@ public class GeminiService {
     private static String extractFromLastNarrativeMarker(String text) {
         if (text == null || text.isBlank()) return "";
 
-        // Casamento tolerante para marcadores de narrativa, aceitando qualquer combinação de asteriscos e dois pontos
-        // Ex: *Drafting response:*, **Narrativa:**, *Resultado Final:*, *A Cena:*, etc.
-        Pattern markerPattern = Pattern.compile("(?im)^\\s*(?:[*-]\\s*)*(?:\\*{1,2}|#{1,4}\\s*)?(?:Drafting response|Drafting Narrativa|Resultado Final|Cena Final|Narrativa|A Cena|Cena|Draft)[:\\*]*\\s*(?:\\r?\\n|$)");
+        // Casamento tolerante para marcadores de narrativa, aceitando qualquer combinação de asteriscos, itálicos e traços
+        // Ex: *Drafting response:*, * *Drafting Narrative:*, **Narrativa:**, *Resultado Final:*, *A Cena:*, etc.
+        Pattern markerPattern = Pattern.compile("(?im)^\\s*(?:[*-]\\s*)*(?:\\*{1,2}|_{1,2}|#{1,4}\\s*)?(?:Drafting response|Drafting Narrative|Draft Narrative|Drafting Story|Drafting Narrativa|Resultado Final|Cena Final|Narrativa|A Cena|Cena|Draft)[:*_]*\\s*(?:\\r?\\n|$)");
         Matcher matcher = markerPattern.matcher(text);
 
         int lastMatchEnd = -1;
@@ -311,7 +311,10 @@ public class GeminiService {
         }
 
         if (lastMatchEnd != -1) {
-            return text.substring(lastMatchEnd).trim();
+            String candidate = text.substring(lastMatchEnd).trim();
+            // Desindenta se o bloco de texto capturado tiver sido gerado com indentação de 2 a 4 espaços por ser filho de bullet
+            candidate = candidate.replaceAll("(?m)^ {2,4}", "");
+            return candidate.trim();
         }
 
         return text;
@@ -359,14 +362,20 @@ public class GeminiService {
     private static String sanitizeTrailingMonologueAndChecklists(String text) {
         if (text == null || text.isBlank()) return "";
 
-        // Corta notas de rodapé conhecidas: *Self-Correction:*, *Wait...*, *Ready.*, *Check against rules*, etc.
-        Pattern endPattern = Pattern.compile("(?im)^\\s*(?:\\*+(?:Self-Correction|Self correction|Wait|Final check|Ready|Check against rules|Final Polish|Auto-correção|Autoavaliação|Notas de bastidores|Notas do Mestre|Nota|Observação)\\*+|Self-Correction:|Check against rules:|Notes:).*$");
-        Matcher endMatcher = endPattern.matcher(text);
-        if (endMatcher.find()) {
-            text = text.substring(0, endMatcher.start()).trim();
+        // 1. Extrair e guardar tags essenciais ([PEDIR_TESTE: ...] e [DICAS_DE_ACAO: ...]) para reanexar depois
+        List<String> preservedDiceTags = new ArrayList<>();
+        Matcher diceMatcher = Pattern.compile("\\[PEDIR_TESTE:[^\\]]+\\]").matcher(text);
+        while (diceMatcher.find()) {
+            preservedDiceTags.add(diceMatcher.group());
         }
 
-        // Localiza a ÚLTIMA ocorrência de "O que você faz?"
+        List<String> preservedHintTags = new ArrayList<>();
+        Matcher hintMatcher = Pattern.compile("\\[DICAS_DE_ACAO:[^\\]]+\\]").matcher(text);
+        while (hintMatcher.find()) {
+            preservedHintTags.add(hintMatcher.group());
+        }
+
+        // 2. Se houver "O que você faz?", tudo após ela é descarte, exceto as tags já salvas
         Pattern questionPattern = Pattern.compile("(?i)O que você faz\\?");
         Matcher qMatcher = questionPattern.matcher(text);
         int lastQuestionEnd = -1;
@@ -375,23 +384,51 @@ public class GeminiService {
         }
 
         if (lastQuestionEnd != -1) {
-            String beforeAndQuestion = text.substring(0, lastQuestionEnd);
-            String after = text.substring(lastQuestionEnd);
-
-            StringBuilder preservedTags = new StringBuilder();
-            Matcher diceTag = Pattern.compile("\\[PEDIR_TESTE:[^\\]]+\\]").matcher(after);
-            while (diceTag.find()) {
-                preservedTags.append("\n").append(diceTag.group());
-            }
-            Matcher hintTag = Pattern.compile("\\[DICAS_DE_ACAO:[^\\]]+\\]").matcher(after);
-            while (hintTag.find()) {
-                preservedTags.append("\n").append(hintTag.group());
+            text = text.substring(0, lastQuestionEnd);
+        } else {
+            // Se não houver a pergunta, corta notas de rodapé conhecidas: *Self-Correction:*, *Ending:*, etc.
+            Pattern endPattern = Pattern.compile("(?im)^\\s*(?:[*-]\\s*)*(?:\\*+(?:Self-Correction|Self correction|Wait|Final check|Ready|Check against rules|Final Polish|Auto-correção|Autoavaliação|Notas de bastidores|Notas do Mestre|Nota|Observação|Ending|Decision|Tag|Mechanics)\\*+|Self-Correction:|Check against rules:|Notes:|Ending:|Decision:|Tag:|Mechanics:).*$");
+            Matcher endMatcher = endPattern.matcher(text);
+            if (endMatcher.find()) {
+                text = text.substring(0, endMatcher.start()).trim();
             }
 
-            text = beforeAndQuestion + preservedTags.toString();
+            // Corta blocos de checklist booleano remanescentes (ex: "2nd person? Yes.", "No headers? Yes.", "Concise? Yes.")
+            Pattern checklistPattern = Pattern.compile("(?im)^\\s*(?:[*-]\\s*)?[a-zA-Z0-9\\s_-]+\\?\\s*(?:Yes|Sim|No|Não|Checked)\\.?\\s*$");
+            String[] lines = text.split("\\r?\\n");
+            int lastValidLine = lines.length;
+            for (int i = lines.length - 1; i >= 0; i--) {
+                String l = lines[i].trim();
+                if (l.isEmpty()) continue;
+                if (checklistPattern.matcher(l).matches() || l.matches("(?im)^\\s*(?:[*-]\\s*)?\\*?(?:Ending|Decision|Tag|Mechanics)\\*?:?.*$")) {
+                    lastValidLine = i;
+                } else {
+                    break;
+                }
+            }
+            if (lastValidLine < lines.length) {
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < lastValidLine; i++) {
+                    sb.append(lines[i]).append("\n");
+                }
+                text = sb.toString().trim();
+            }
         }
 
-        return text.trim();
+        // 3. Reanexa as tags preservadas se não estiverem presentes no texto limpo
+        StringBuilder result = new StringBuilder(text.trim());
+        for (String dt : preservedDiceTags) {
+            if (!result.toString().contains(dt)) {
+                result.append("\n").append(dt);
+            }
+        }
+        for (String ht : preservedHintTags) {
+            if (!result.toString().contains(ht)) {
+                result.append("\n").append(ht);
+            }
+        }
+
+        return result.toString().trim();
     }
 
     /**

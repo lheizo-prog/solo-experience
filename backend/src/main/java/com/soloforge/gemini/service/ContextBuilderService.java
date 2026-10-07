@@ -152,8 +152,9 @@ public class ContextBuilderService {
         sb.append("Aqui entra EXCLUSIVAMENTE a prosa viva e imersiva dirigida ao jogador em 2ª pessoa ('Você...'), sem nenhum cabeçalho, sem reflexões, sem notas de tom, sem múltiplos rascunhos, encerrando com o dilema 'O que você faz?' e a tag [PEDIR_TESTE: ...] ou [DICAS_DE_ACAO: ...] se cabível.\n");
         sb.append("</narrativa>\n\n");
         sb.append("REGRAS INVIOLÁVEIS:\n");
-        sb.append("1. É TERMINANTEMENTE PROIBIDO colocar pensamentos, rascunhos múltiplos ('Drafting', 'Resultado Final'), autoavaliações ('Self-Correction', 'Wait'), notas de bastidores ou a ficha do personagem dentro de <narrativa> ou soltos em markdown.\n");
-        sb.append("2. O jogador verá única e exclusivamente o conteúdo de <narrativa>. Não gere diálogos internos consigo mesmo nem em português nem em inglês.\n\n");
+        sb.append("1. É TERMINANTEMENTE PROIBIDO colocar pensamentos, rascunhos múltiplos ('Drafting', 'Resultado Final'), autoavaliações ('Self-Correction', 'Wait', '2nd person? Yes', 'No headers? Yes'), notas de bastidores ou a ficha do personagem dentro de <narrativa> ou soltos em markdown.\n");
+        sb.append("2. O jogador verá única e exclusivamente o conteúdo de <narrativa>. Não gere diálogos internos consigo mesmo nem em português nem em inglês, e NUNCA gere checklists de auto-revisão no final da mensagem.\n");
+        sb.append("3. Planejamento de cena, intenção de NPCs e reflexões mecânicas pertencem 100% dentro do bloco <pensamento>.\n\n");
 
         sb.append("=== DIRETRIZES ESTATUTÁRIAS DO MESTRE (ÁRBITRO DE REGRAS & PACING) ===\n");
         sb.append("1. **ÁRBITRO IMPARCIAL DAS REGRAS**:\n");

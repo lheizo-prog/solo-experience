@@ -215,4 +215,78 @@ class GeminiServiceTest {
         assertFalse(result.contains("Evaluating player"));
         assertEquals("A porta range ao se abrir, revelando um salão coberto de poeira e teias de aranha. O que você faz?", result);
     }
+
+    @Test
+    void testZanshinDojoDraftingLeakAndChecklistStripped() {
+        String input = """
+            Zanshin Dojo, morning training.
+            Mestre Zemi (Strict, values purity of body/spirit, dislikes shortcuts).
+            Reny bows and whispers a declaration of competence to represent the dojo at the tournament.
+
+                *   Zemi sees Reny as a "rough diamond" but believes severity is the only way to polish him.
+                *   Reny is exhausted (lack of sleep from working on the staff).
+                *   Zemi's personality: Doesn't smile, few words, believes the body is the only weapon.
+                *   Zemi's reaction to Reny's statement: He doesn't want words; he wants results. He likely sees this as "juvenile impulse" or "arrogance," which he intends to crush/shape.
+
+                *   Zemi won't give a warm answer. He will likely challenge Reny's "competence" immediately.
+                *   Since Reny is exhausted (though not mechanically "Exhausted" in terms of status, narratively he is), Zemi might notice a slight flaw in his stance or breath.
+                *   The scene should transition from dialogue to action (training).
+
+                *   Zemi responds with a cold observation.
+                *   He orders a specific, grueling exercise or a sparring match to test this "competence."
+                *   Let's go with a "Resistance/Endurance" test first, or a direct sparring match against a larger opponent to highlight Reny's physical struggle vs. his willpower.
+                *   *Alternative:* Zemi tests Reny's focus.
+
+                *   Zemi's response: "Competence is not spoken; it is proven in the blood and sweat of the mat."
+                *   Action: Zemi orders the students to begin a series of high-intensity strikes (Katas) or a specific endurance test.
+                *   *The Twist:* Zemi notices Reny's slight instability (due to the all-nighter).
+
+                *   *Drafting Narrative:*
+                    Zemi doesn't move a muscle. His gaze remains heavy, piercing through your facade of confidence. For a long moment, the only sound is the wind whistling through the eaves of the dojo. Then, his voice drops an octave, becoming a low rumble that vibrates in the air.
+
+                    "Palavras são o refúgio dos fracos, Reny. O tatame não ouve promessas; ele sente apenas o peso da verdade."
+
+                    Zemi descruza os braços e faz um gesto seco com a mão, indicando o centro do pátio. "Se você acredita que sua competência é suficiente, prove-a agora. Cento e cinquenta repetições do Kata do Punho Quebrador. Sem pausas. Sem hesitação. Se um único golpe perder a forma ou se seus joelhos vacilarem, você recomeçará do zero."
+
+                    Os outros alunos recuam, sabendo que o Kata do Punho Quebrador é um dos exercícios mais desgastantes do Zanshin Dōjō, exigindo uma estabilidade absoluta e uma força explosiva constante. Para uma criança de 1,40m que passou a noite em claro ajustando engrenagens, cada repetição será uma batalha contra a própria gravidade. O que você faz?
+
+                *   *Ending:* The player must perform the Kata. Since it's an endurance/form test, this is a perfect time for a RES or FOR test.
+                *   *Decision:* Let's make it a test of **Resistência (RES)** because he's exhausted and needs to maintain form.
+
+                *   *Tag:* [PEDIR_TESTE: d20 | DT: 14 | Resistência | Executar o Kata do Punho Quebrador até o fim]
+
+                *   2nd person? Yes.
+                *   No headers? Yes.
+                *   Concise? Yes.
+                *   No lists? Yes.
+                *   Correct tag? Yes.
+            """;
+
+        String result = GeminiService.extractPlayerNarrative(input);
+
+        // Não deve conter notas de bastidores nem preâmbulos em inglês
+        assertFalse(result.contains("Zanshin Dojo, morning training"));
+        assertFalse(result.contains("rough diamond"));
+        assertFalse(result.contains("Zemi's personality"));
+        assertFalse(result.contains("The Twist:"));
+        assertFalse(result.contains("Drafting Narrative:"));
+
+        // Não deve conter o checklist de validação nem notas de decisão técnica
+        assertFalse(result.contains("The player must perform the Kata"));
+        assertFalse(result.contains("Let's make it a test"));
+        assertFalse(result.contains("2nd person? Yes"));
+        assertFalse(result.contains("No headers? Yes"));
+        assertFalse(result.contains("Concise? Yes"));
+        assertFalse(result.contains("Correct tag? Yes"));
+
+        // Deve conter a narrativa do Mestre e os diálogos
+        assertTrue(result.contains("Zemi doesn't move a muscle"));
+        assertTrue(result.contains("Palavras são o refúgio dos fracos, Reny."));
+        assertTrue(result.contains("Cento e cinquenta repetições do Kata do Punho Quebrador"));
+        assertTrue(result.contains("O que você faz?"));
+
+        // Deve preservar a tag mecânica
+        assertTrue(result.contains("[PEDIR_TESTE: d20 | DT: 14 | Resistência | Executar o Kata do Punho Quebrador até o fim]"));
+    }
 }
+
