@@ -34,6 +34,9 @@ public class CampaignBible {
     private String playerCharacter;
 
     @Column(columnDefinition = "TEXT")
+    private String characterAttributes;
+
+    @Column(columnDefinition = "TEXT")
     private String keyThemes;
 
     @UpdateTimestamp

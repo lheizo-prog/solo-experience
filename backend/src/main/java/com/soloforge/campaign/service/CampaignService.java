@@ -9,6 +9,11 @@ import com.soloforge.campaign.repository.CampaignRepository;
 import com.soloforge.campaign.repository.CampaignSystemRepository;
 import com.soloforge.session.entity.Session;
 import com.soloforge.session.repository.SessionRepository;
+import com.soloforge.campaign.repository.StoryArcRepository;
+import com.soloforge.message.entity.Message;
+import com.soloforge.message.repository.MessageRepository;
+import com.soloforge.npc.repository.NpcRepository;
+import com.soloforge.world.repository.WorldDecisionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +30,10 @@ public class CampaignService {
     private final CampaignBibleRepository bibleRepository;
     private final CampaignSystemRepository systemRepository;
     private final SessionRepository sessionRepository;
+    private final MessageRepository messageRepository;
+    private final StoryArcRepository storyArcRepository;
+    private final NpcRepository npcRepository;
+    private final WorldDecisionRepository worldDecisionRepository;
 
     @Transactional
     public CampaignDto.Response createCampaign(CampaignDto.CreateRequest request) {
@@ -39,6 +48,7 @@ public class CampaignService {
                 .worldLore(request.getWorldLore())
                 .toneAndStyle(request.getToneAndStyle())
                 .playerCharacter(request.getPlayerCharacter())
+                .characterAttributes(request.getCharacterAttributes())
                 .keyThemes(request.getKeyThemes())
                 .build();
 
@@ -100,6 +110,7 @@ public class CampaignService {
         bible.setWorldLore(request.getWorldLore());
         bible.setToneAndStyle(request.getToneAndStyle());
         bible.setPlayerCharacter(request.getPlayerCharacter());
+        bible.setCharacterAttributes(request.getCharacterAttributes());
         bible.setKeyThemes(request.getKeyThemes());
 
         bibleRepository.save(bible);
@@ -129,6 +140,34 @@ public class CampaignService {
         return toDto(campaign);
     }
 
+    @Transactional
+    public void deleteCampaign(UUID campaignId) {
+        Campaign campaign = campaignRepository.findById(campaignId)
+                .orElseThrow(() -> new IllegalArgumentException("Campanha não encontrada: " + campaignId));
+
+        // 1. Remove mensagens de todas as sessões da campanha
+        List<Session> sessions = sessionRepository.findByCampaignIdOrderBySessionNumberAsc(campaignId);
+        for (Session session : sessions) {
+            List<Message> msgs = messageRepository.findBySessionIdOrderByCreatedAtAsc(session.getId());
+            messageRepository.deleteAll(msgs);
+        }
+
+        // 2. Remove sessões da campanha
+        sessionRepository.deleteAll(sessions);
+
+        // 3. Remove Arcos Narrativos
+        storyArcRepository.deleteAll(storyArcRepository.findByCampaignId(campaignId));
+
+        // 4. Remove NPCs
+        npcRepository.deleteAll(npcRepository.findByCampaignId(campaignId));
+
+        // 5. Remove Decisões do Mundo
+        worldDecisionRepository.deleteAll(worldDecisionRepository.findByCampaignIdOrderByCreatedAtDesc(campaignId));
+
+        // 6. Remove a Campanha (Bíblia e Sistema com CascadeType.ALL serão excluídos juntos)
+        campaignRepository.delete(campaign);
+    }
+
     public CampaignDto.Response toDto(Campaign entity) {
         CampaignDto.BibleResponse bibleDto = null;
         if (entity.getBible() != null) {
@@ -137,6 +176,7 @@ public class CampaignService {
                     .worldLore(entity.getBible().getWorldLore())
                     .toneAndStyle(entity.getBible().getToneAndStyle())
                     .playerCharacter(entity.getBible().getPlayerCharacter())
+                    .characterAttributes(entity.getBible().getCharacterAttributes())
                     .keyThemes(entity.getBible().getKeyThemes())
                     .build();
         }

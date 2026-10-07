@@ -21,6 +21,13 @@ public class NpcDto {
     }
 
     @Data
+    public static class GenerateAiRequest {
+        private String concept; // ex: "Lorde vampiro que governa a fortaleza nas sombras"
+        private String type;    // "BOSS", "MINION", "ALLY", "RIVAL", "MERCHANT"
+        private String challengeLevel; // "EASY", "MEDIUM", "HARD", "DEADLY", "LEGENDARY"
+    }
+
+    @Data
     public static class UpdateRequest {
         private String name;
         private String role;

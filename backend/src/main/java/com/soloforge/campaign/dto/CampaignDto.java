@@ -20,6 +20,7 @@ public class CampaignDto {
         private String worldLore;
         private String toneAndStyle;
         private String playerCharacter;
+        private String characterAttributes;
         private String keyThemes;
 
         // Sistema inicial
@@ -34,6 +35,7 @@ public class CampaignDto {
         private String worldLore;
         private String toneAndStyle;
         private String playerCharacter;
+        private String characterAttributes;
         private String keyThemes;
     }
 
@@ -65,6 +67,7 @@ public class CampaignDto {
         private String worldLore;
         private String toneAndStyle;
         private String playerCharacter;
+        private String characterAttributes;
         private String keyThemes;
     }
 

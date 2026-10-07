@@ -3,6 +3,7 @@ export interface CampaignBible {
   worldLore?: string;
   toneAndStyle?: string;
   playerCharacter?: string;
+  characterAttributes?: string;
   keyThemes?: string;
 }
 

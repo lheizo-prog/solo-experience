@@ -31,6 +31,13 @@ public class NpcController {
         return ResponseEntity.status(HttpStatus.CREATED).body(npcService.createNpc(campaignId, request));
     }
 
+    @PostMapping("/generate-with-ai")
+    public ResponseEntity<NpcDto.Response> generateNpcWithAi(
+            @PathVariable UUID campaignId,
+            @RequestBody NpcDto.GenerateAiRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(npcService.generateNpcWithAi(campaignId, request));
+    }
+
     @PutMapping("/{npcId}")
     public ResponseEntity<NpcDto.Response> updateNpc(
             @PathVariable UUID campaignId,

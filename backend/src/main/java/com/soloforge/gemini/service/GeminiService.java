@@ -86,4 +86,50 @@ public class GeminiService {
             return "Erro ao contatar o oráculo do Gemini: " + e.getMessage();
         }
     }
+
+    /**
+     * Chamada direta para geração de texto/JSON sem histórico
+     */
+    public String generateContent(String systemInstruction, String userPrompt) {
+        if (apiKey == null || apiKey.isBlank()) {
+            return "";
+        }
+
+        try {
+            String endpoint = String.format("%s/%s:generateContent?key=%s", baseUrl, model, apiKey);
+
+            Map<String, Object> requestBody = new HashMap<>();
+            if (systemInstruction != null && !systemInstruction.isBlank()) {
+                requestBody.put("system_instruction", Map.of(
+                        "parts", List.of(Map.of("text", systemInstruction))
+                ));
+            }
+
+            requestBody.put("contents", List.of(Map.of(
+                    "role", "user",
+                    "parts", List.of(Map.of("text", userPrompt))
+            )));
+
+            String responseJson = restClient.post()
+                    .uri(endpoint)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(requestBody)
+                    .retrieve()
+                    .body(String.class);
+
+            JsonNode root = objectMapper.readTree(responseJson);
+            JsonNode candidate = root.path("candidates").get(0);
+            if (candidate != null) {
+                JsonNode parts = candidate.path("content").path("parts");
+                if (parts.isArray() && !parts.isEmpty()) {
+                    return parts.get(0).path("text").asText();
+                }
+            }
+            return "";
+        } catch (Exception e) {
+            log.error("Erro ao gerar conteúdo direto via Gemini", e);
+            return "";
+        }
+    }
 }
+

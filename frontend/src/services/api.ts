@@ -31,6 +31,13 @@ export const api = {
     return res.json();
   },
 
+  async deleteCampaign(campaignId: string): Promise<void> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) throw new Error('Falha ao excluir campanha');
+  },
+
   async createCampaign(data: {
     title: string;
     synopsis?: string;
@@ -38,6 +45,7 @@ export const api = {
     worldLore?: string;
     toneAndStyle?: string;
     playerCharacter?: string;
+    characterAttributes?: string;
     keyThemes?: string;
     systemName?: string;
     coreMechanics?: string;
@@ -50,6 +58,37 @@ export const api = {
       body: JSON.stringify(data)
     });
     if (!res.ok) throw new Error('Falha ao criar campanha');
+    return res.json();
+  },
+
+  async createCampaignWithFiles(
+    data: {
+      title: string;
+      synopsis?: string;
+      genre?: string;
+      worldLore?: string;
+      playerCharacter?: string;
+      characterAttributes?: string;
+      systemName?: string;
+    },
+    files: File[]
+  ): Promise<Campaign> {
+    const formData = new FormData();
+    formData.append('title', data.title);
+    if (data.genre) formData.append('genre', data.genre);
+    if (data.synopsis) formData.append('synopsis', data.synopsis);
+    if (data.playerCharacter) formData.append('playerCharacter', data.playerCharacter);
+    if (data.characterAttributes) formData.append('characterAttributes', data.characterAttributes);
+    if (data.worldLore) formData.append('worldLore', data.worldLore);
+    if (data.systemName) formData.append('systemName', data.systemName);
+
+    files.forEach(f => formData.append('files', f));
+
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/with-files`, {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) throw new Error('Falha ao criar campanha com arquivos de regras');
     return res.json();
   },
 
@@ -199,6 +238,20 @@ export const api = {
       body: JSON.stringify(data)
     });
     if (!res.ok) throw new Error('Falha ao criar NPC');
+    return res.json();
+  },
+
+  async generateNpcWithAi(campaignId: string, data: {
+    concept?: string;
+    type?: string;
+    challengeLevel?: string;
+  }): Promise<Npc> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/npcs/generate-with-ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Falha ao forjar NPC/Boss com a IA');
     return res.json();
   },
 

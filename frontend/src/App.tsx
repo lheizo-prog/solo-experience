@@ -29,7 +29,9 @@ import {
   Menu,
   X,
   LogOut,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 
 import { LoginScreen } from './components/LoginScreen';
@@ -96,6 +98,14 @@ export function App() {
   const [newNpcPersonality, setNewNpcPersonality] = useState('');
   const [newNpcMemory, setNewNpcMemory] = useState('');
 
+  // Gerador de NPC/Boss com IA
+  const [isAiNpcModal, setIsAiNpcModal] = useState(false);
+  const [aiNpcConcept, setAiNpcConcept] = useState('');
+  const [aiNpcType, setAiNpcType] = useState<'BOSS' | 'MINION' | 'ALLY' | 'RIVAL' | 'MERCHANT'>('BOSS');
+  const [aiNpcChallenge, setAiNpcChallenge] = useState<'FÁCIL' | 'MÉDIO' | 'DIFÍCIL' | 'MORTAL' | 'LENDÁRIO'>('DIFÍCIL');
+  const [isGeneratingAiNpc, setIsGeneratingAiNpc] = useState(false);
+
+
   // Modal de Importação & Síntese de Regras (Etapa de Regras com IA)
   const [isRulesModal, setIsRulesModal] = useState(false);
   const [rulesInputMode, setRulesInputMode] = useState<'text' | 'files'>('files');
@@ -117,6 +127,132 @@ export function App() {
     '2. Dificuldades: Fácil (10), Média (15), Difícil (20), Quase Impossível (25).\n' +
     '3. O Mestre deve barrar ações que infrinjam os atributos, inventário ou a física do cenário.'
   );
+
+  // Opções de regras na criação de campanha
+  const [creationRulesMode, setCreationRulesMode] = useState<'text' | 'files'>('text');
+  const [creationSystemName, setCreationSystemName] = useState('');
+  const [creationRuleFiles, setCreationRuleFiles] = useState<File[]>([]);
+  const [isCreatingCampaignLoading, setIsCreatingCampaignLoading] = useState(false);
+
+  // Tabela Dinâmica de Atributos do Personagem
+  const [newAttributes, setNewAttributes] = useState<{ id: string; name: string; value: string }[]>([
+    { id: '1', name: 'Força', value: '+3' },
+    { id: '2', name: 'Destreza', value: '+2' },
+    { id: '3', name: 'Constituição', value: '+2' },
+    { id: '4', name: 'Inteligência', value: '+0' },
+    { id: '5', name: 'Sabedoria', value: '+1' },
+    { id: '6', name: 'Carisma', value: '-1' }
+  ]);
+
+  const addAttributeRow = () => {
+    setNewAttributes(prev => [...prev, { id: Date.now().toString(), name: '', value: '' }]);
+  };
+
+  const removeAttributeRow = (id: string) => {
+    setNewAttributes(prev => prev.filter(attr => attr.id !== id));
+  };
+
+  const updateAttributeRow = (id: string, field: 'name' | 'value', val: string) => {
+    setNewAttributes(prev => prev.map(attr => attr.id === id ? { ...attr, [field]: val } : attr));
+  };
+
+  const applyAttributePreset = (preset: 'd20' | 'cthulhu' | 'cyberpunk' | 'narrative') => {
+    if (preset === 'd20') {
+      setNewAttributes([
+        { id: '1', name: 'Força', value: '+3' },
+        { id: '2', name: 'Destreza', value: '+2' },
+        { id: '3', name: 'Constituição', value: '+2' },
+        { id: '4', name: 'Inteligência', value: '+0' },
+        { id: '5', name: 'Sabedoria', value: '+1' },
+        { id: '6', name: 'Carisma', value: '-1' }
+      ]);
+    } else if (preset === 'cthulhu') {
+      setNewAttributes([
+        { id: '1', name: 'Físico / Força', value: '55%' },
+        { id: '2', name: 'Destreza / Fuga', value: '60%' },
+        { id: '3', name: 'Investigação / Percepção', value: '75%' },
+        { id: '4', name: 'Ocultismo / Misticismo', value: '40%' },
+        { id: '5', name: 'Lábia / Persuasão', value: '50%' },
+        { id: '6', name: 'Sanidade Atual', value: '70 / 99' }
+      ]);
+    } else if (preset === 'cyberpunk') {
+      setNewAttributes([
+        { id: '1', name: 'Reflexos', value: '8' },
+        { id: '2', name: 'Interface / Hacking', value: '9' },
+        { id: '3', name: 'Frieza / Sangue Frio', value: '7' },
+        { id: '4', name: 'Tecnologia', value: '6' },
+        { id: '5', name: 'Corpo / Armadura', value: '5' }
+      ]);
+    } else if (preset === 'narrative') {
+      setNewAttributes([
+        { id: '1', name: 'Corpo', value: 'Forte' },
+        { id: '2', name: 'Mente', value: 'Astuta' },
+        { id: '3', name: 'Alma', value: 'Inabalável' }
+      ]);
+    }
+  };
+
+  const handleDownloadAttributeTemplate = () => {
+    const templateData = {
+      descricao: "Modelo de Ficha de Atributos do SoloForge - Adapte conforme o seu livro de regras",
+      personagem: "Thorne, o Proscrito",
+      atributos: newAttributes.map(a => ({ atributo: a.name || 'Nome', valor: a.value || '0' }))
+    };
+    const blob = new Blob([JSON.stringify(templateData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'modelo_atributos_soloforge.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportAttributesFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        if (file.name.endsWith('.json')) {
+          const parsed = JSON.parse(content);
+          if (Array.isArray(parsed.atributos)) {
+            const imported = parsed.atributos.map((item: { atributo?: string; valor?: string; name?: string; value?: string }, idx: number) => ({
+              id: `${Date.now()}-${idx}`,
+              name: item.atributo || item.name || '',
+              value: String(item.valor ?? item.value ?? '')
+            }));
+            if (imported.length > 0) setNewAttributes(imported);
+          } else if (typeof parsed === 'object') {
+            const imported = Object.entries(parsed).map(([key, val], idx) => ({
+              id: `${Date.now()}-${idx}`,
+              name: key,
+              value: String(val)
+            }));
+            if (imported.length > 0) setNewAttributes(imported);
+          }
+        } else {
+          // Linhas em CSV ou TXT (formato: Nome,Valor ou Nome:Valor)
+          const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
+          const imported = lines.map((line, idx) => {
+            const parts = line.includes(':') ? line.split(':') : line.split(',');
+            return {
+              id: `${Date.now()}-${idx}`,
+              name: parts[0]?.trim() || '',
+              value: parts.slice(1).join(',').trim() || ''
+            };
+          }).filter(item => item.name);
+          if (imported.length > 0) setNewAttributes(imported);
+        }
+      } catch {
+        alert('Não foi possível ler o arquivo. Certifique-se de que é um JSON, CSV ou TXT válido.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -148,6 +284,36 @@ export function App() {
       console.log('Sem conexão com o backend ou lista vazia');
     }
   };
+
+  const handleDeleteCampaign = async (campaignId: string, campaignTitle: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm(`Tem certeza que deseja apagar a crônica "${campaignTitle}" e todo o seu histórico permanentemente?`)) {
+      return;
+    }
+
+    try {
+      await api.deleteCampaign(campaignId);
+      const remaining = campaigns.filter(c => c.id !== campaignId);
+      setCampaigns(remaining);
+
+      if (selectedCampaign?.id === campaignId) {
+        if (remaining.length > 0) {
+          handleSelectCampaign(remaining[0]);
+        } else {
+          setSelectedCampaign(null);
+          setCurrentSession(null);
+          setSessions([]);
+          setMessages([]);
+          setArcs([]);
+          setDecisions([]);
+          setNpcs([]);
+        }
+      }
+    } catch (err: unknown) {
+      alert('Erro ao excluir campanha: ' + (err instanceof Error ? err.message : 'Falha na conexão'));
+    }
+  };
+
 
 
   const handleSelectCampaign = async (camp: Campaign) => {
@@ -447,6 +613,28 @@ export function App() {
     }
   };
 
+  const handleGenerateAiNpc = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCampaign || isGeneratingAiNpc) return;
+
+    setIsGeneratingAiNpc(true);
+    try {
+      const generated = await api.generateNpcWithAi(selectedCampaign.id, {
+        concept: aiNpcConcept.trim() || undefined,
+        type: aiNpcType,
+        challengeLevel: aiNpcChallenge
+      });
+      setNpcs(prev => [generated, ...prev]);
+      setIsAiNpcModal(false);
+      setAiNpcConcept('');
+    } catch (err: unknown) {
+      alert('Erro ao forjar NPC com a IA: ' + (err instanceof Error ? err.message : 'Falha na conexão'));
+    } finally {
+      setIsGeneratingAiNpc(false);
+    }
+  };
+
+
   const handleToggleCrystallize = async (npc: Npc) => {
     if (!selectedCampaign) return;
     try {
@@ -580,17 +768,43 @@ export function App() {
     e.preventDefault();
     if (!newTitle.trim()) return;
 
+    // Constrói a representação textual dos atributos (ex: Força: +3 | Destreza: +2)
+    const validAttributes = newAttributes.filter(a => a.name.trim());
+    const attributesString = validAttributes.length > 0
+      ? validAttributes.map(a => `${a.name.trim()}: ${a.value.trim() || '0'}`).join('\n')
+      : 'Atributos padrão do sistema';
+
+    setIsCreatingCampaignLoading(true);
     try {
-      const created = await api.createCampaign({
-        title: newTitle,
-        genre: newGenre,
-        synopsis: newSynopsis,
-        playerCharacter: newCharacter,
-        worldLore: newLore,
-        systemName: 'SoloForge D20 Narrativo',
-        coreMechanics: newRules,
-        rollInstructions: 'O Mestre deve emitir a tag [PEDIR_TESTE: dado | DT | atributo | motivo] antes de definir consequências de ações arriscadas.'
-      });
+      let created: Campaign;
+
+      if (creationRulesMode === 'files' && creationRuleFiles.length > 0) {
+        created = await api.createCampaignWithFiles(
+          {
+            title: newTitle,
+            genre: newGenre,
+            synopsis: newSynopsis,
+            playerCharacter: newCharacter,
+            characterAttributes: attributesString,
+            worldLore: newLore,
+            systemName: creationSystemName.trim() || undefined
+          },
+          creationRuleFiles
+        );
+      } else {
+        created = await api.createCampaign({
+          title: newTitle,
+          genre: newGenre,
+          synopsis: newSynopsis,
+          playerCharacter: newCharacter,
+          characterAttributes: attributesString,
+          worldLore: newLore,
+          systemName: creationSystemName.trim() || 'SoloForge D20 Narrativo',
+          coreMechanics: newRules,
+          rollInstructions: 'O Mestre deve emitir a tag [PEDIR_TESTE: dado | DT | atributo | motivo] antes de definir consequências de ações arriscadas.'
+        });
+      }
+
       setCampaigns(prev => [created, ...prev]);
       handleSelectCampaign(created);
       setIsCreatingModal(false);
@@ -598,6 +812,9 @@ export function App() {
       setNewSynopsis('');
       setNewCharacter('');
       setNewLore('');
+      setCreationRuleFiles([]);
+      setCreationSystemName('');
+      setCreationRulesMode('text');
     } catch {
       const localCamp: Campaign = {
         id: 'local-' + Date.now(),
@@ -608,6 +825,7 @@ export function App() {
         bible: {
           id: 'b-1',
           playerCharacter: newCharacter,
+          characterAttributes: attributesString,
           worldLore: newLore,
           toneAndStyle: 'Imersivo, desafiador e fiel às regras'
         },
@@ -639,6 +857,8 @@ export function App() {
         }
       ]);
       setIsCreatingModal(false);
+    } finally {
+      setIsCreatingCampaignLoading(false);
     }
   };
 
@@ -718,7 +938,7 @@ export function App() {
             </div>
           ) : (
             campaigns.map(camp => (
-              <button
+              <div
                 key={camp.id}
                 onClick={() => handleSelectCampaign(camp)}
                 className={`w-full text-left p-3 rounded-lg flex items-center justify-between transition group cursor-pointer ${
@@ -727,7 +947,7 @@ export function App() {
                     : 'hover:bg-slate-800/70 text-slate-300 border border-transparent'
                 }`}
               >
-                <div className="truncate">
+                <div className="truncate flex-1 pr-2">
                   <div className="font-medium text-sm truncate flex items-center gap-1.5">
                     <Scroll className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                     {camp.title}
@@ -736,8 +956,18 @@ export function App() {
                     {camp.genre || 'Fantasia'}
                   </span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 transition" />
-              </button>
+                
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={(e) => handleDeleteCampaign(camp.id, camp.title, e)}
+                    className="p-1 text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 rounded transition opacity-0 group-hover:opacity-100 cursor-pointer"
+                    title={`Excluir crônica "${camp.title}"`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                  <ChevronRight className="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 transition" />
+                </div>
+              </div>
             ))
           )}
         </div>
@@ -1195,13 +1425,23 @@ export function App() {
                     </h3>
                     <p className="text-[11px] text-slate-400">NPCs cristalizados são lembrados pelo Mestre IA.</p>
                   </div>
-                  <button
-                    onClick={() => setIsNewNpcModal(true)}
-                    className="p-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs flex items-center gap-1 transition cursor-pointer"
-                    title="Novo NPC"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setIsAiNpcModal(true)}
+                      className="px-2.5 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white rounded text-xs font-medium flex items-center gap-1.5 transition cursor-pointer shadow-sm shadow-amber-900/30"
+                      title="Forjar NPC, Inimigo ou Boss com IA baseado no sistema de regras"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Forjar com IA</span>
+                    </button>
+                    <button
+                      onClick={() => setIsNewNpcModal(true)}
+                      className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded text-xs flex items-center gap-1 transition cursor-pointer border border-slate-700"
+                      title="Novo NPC Manual"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 {npcs.length === 0 ? (
@@ -1381,11 +1621,32 @@ export function App() {
 
 
                 {/* Personagem do Jogador */}
-                <div className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/80">
+                <div className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/80 space-y-2">
                   <span className="font-semibold text-slate-300 block mb-1">🧙 Personagem do Jogador (PJ)</span>
-                  <p className="text-slate-400 leading-relaxed whitespace-pre-line">
+                  <p className="text-slate-400 leading-relaxed whitespace-pre-line text-[11px]">
                     {selectedCampaign.bible?.playerCharacter || 'Não especificado ainda.'}
                   </p>
+
+                  {/* Atributos Formatados em Tags/Cards */}
+                  {selectedCampaign.bible?.characterAttributes && (
+                    <div className="pt-2 border-t border-slate-800/80">
+                      <span className="text-[10px] font-semibold text-amber-400 block mb-1.5 uppercase tracking-wider">
+                        Atributos & Estatísticas Ativas:
+                      </span>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {selectedCampaign.bible.characterAttributes.split('\n').filter(Boolean).map((attrLine, idx) => {
+                          const [name, ...valParts] = attrLine.split(':');
+                          const val = valParts.join(':').trim();
+                          return (
+                            <div key={idx} className="bg-slate-900/90 border border-slate-800 rounded px-2 py-1 flex items-center justify-between">
+                              <span className="text-slate-300 font-medium text-[11px] truncate">{name.trim()}</span>
+                              <span className="text-amber-400 font-mono font-bold text-[11px] ml-1 shrink-0">{val || '—'}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Lore do Mundo */}
@@ -1587,6 +1848,121 @@ export function App() {
         </div>
       )}
 
+      {/* MODAL: FORJAR NPC OU BOSS COM IA BASEADO NAS REGRAS */}
+      {isAiNpcModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-amber-500/40 w-full max-w-md rounded-xl p-5 shadow-2xl relative space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <h3 className="text-base font-bold text-amber-400 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                Forjar Criatura / Chefe com IA
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsAiNpcModal(false)}
+                className="text-slate-400 hover:text-slate-200 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              A IA lerá o livro de regras da campanha (<strong className="text-amber-300">{selectedCampaign?.system?.name || 'Sistema Atual'}</strong>) e construirá estatísticas de combate, PV, atributos e fraquezas compatíveis.
+            </p>
+
+            <form onSubmit={handleGenerateAiNpc} className="space-y-3.5 text-xs">
+              {/* Tipo de Criatura */}
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Tipo de Ameaça / Papel</label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(['BOSS', 'MINION', 'ALLY', 'RIVAL', 'MERCHANT'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setAiNpcType(t)}
+                      className={`py-1.5 px-2 rounded border text-[11px] font-medium transition cursor-pointer ${
+                        aiNpcType === t
+                          ? 'bg-amber-600/30 border-amber-500 text-amber-300 font-bold'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {t === 'BOSS' && '👑 Chefe / Boss'}
+                      {t === 'MINION' && '💀 Inimigo / Monstro'}
+                      {t === 'ALLY' && '🤝 Companheiro / Aliado'}
+                      {t === 'RIVAL' && '⚔️ Rival'}
+                      {t === 'MERCHANT' && '💰 Mercador'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Nível de Desafio */}
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">Nível de Dificuldade do Encontro</label>
+                <div className="grid grid-cols-5 gap-1">
+                  {(['FÁCIL', 'MÉDIO', 'DIFÍCIL', 'MORTAL', 'LENDÁRIO'] as const).map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setAiNpcChallenge(c)}
+                      className={`py-1 px-1 rounded border text-[10px] font-medium text-center transition cursor-pointer ${
+                        aiNpcChallenge === c
+                          ? 'bg-amber-600/30 border-amber-500 text-amber-300 font-bold'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Conceito / Inspiração */}
+              <div>
+                <label className="block text-slate-300 font-medium mb-1">
+                  Conceito ou Inspiração (Opcional)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Ex: Um cavaleiro espectral amaldiçoado que empunha fogo azul e guarda a ponte das almas."
+                  value={aiNpcConcept}
+                  onChange={e => setAiNpcConcept(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500 placeholder-slate-500 text-xs"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsAiNpcModal(false)}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isGeneratingAiNpc}
+                  className="px-4 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:opacity-50 text-white rounded font-medium flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed shadow-md shadow-amber-900/30"
+                >
+                  {isGeneratingAiNpc ? (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                      <span>Consultando Livro & Forjando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Forjar com IA Agora</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+
       {/* MODAL: SINTETIZADOR DE REGRAS COM IA (ARQUIVOS OU TEXTO) */}
       {isRulesModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1767,25 +2143,223 @@ export function App() {
                 />
               </div>
 
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">Regras & Mecânicas (O Mestre seguirá rigidamente)</label>
-                <textarea
-                  rows={3}
-                  value={newRules}
-                  onChange={e => setNewRules(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded p-2.5 text-slate-100 outline-none focus:border-amber-500 font-mono text-[11px]"
-                />
+              {/* SELEÇÃO DE REGRAS DO SISTEMA (TEXTO VS UPLOAD DE LIVROS/ARQUIVOS) */}
+              <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-lg space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-slate-300 font-semibold text-xs">
+                      Regras & Sistema de Jogo *
+                    </label>
+                    <span className="text-[10px] text-slate-400">
+                      O Mestre IA seguirá e arbitrará com base nessas diretrizes.
+                    </span>
+                  </div>
+
+                  {/* Nome Opcional do Sistema */}
+                  <input
+                    type="text"
+                    placeholder="Nome do Sistema (ex: Tormenta20, D&D 5e)"
+                    value={creationSystemName}
+                    onChange={e => setCreationSystemName(e.target.value)}
+                    className="w-44 bg-slate-900 border border-slate-800 focus:border-amber-500 rounded px-2 py-1 text-slate-200 placeholder-slate-500 text-[10px] outline-none"
+                  />
+                </div>
+
+                {/* Seletor de Modo: Texto vs Arquivos */}
+                <div className="flex bg-slate-900 p-1 rounded border border-slate-800 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setCreationRulesMode('text')}
+                    className={`flex-1 py-1 rounded flex items-center justify-center gap-1.5 transition cursor-pointer text-[11px] ${
+                      creationRulesMode === 'text'
+                        ? 'bg-amber-600/30 text-amber-300 border border-amber-500/40 font-semibold'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    <span>Escrever Regras Livres</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCreationRulesMode('files')}
+                    className={`flex-1 py-1 rounded flex items-center justify-center gap-1.5 transition cursor-pointer text-[11px] ${
+                      creationRulesMode === 'files'
+                        ? 'bg-amber-600/30 text-amber-300 border border-amber-500/40 font-semibold'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Carregar Livro / Arquivos (.pdf, .txt, .md, .csv)</span>
+                  </button>
+                </div>
+
+                {creationRulesMode === 'text' ? (
+                  <textarea
+                    rows={3}
+                    value={newRules}
+                    onChange={e => setNewRules(e.target.value)}
+                    placeholder="Digite ou cole as regras essenciais do sistema..."
+                    className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500 font-mono text-[11px]"
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    <label className="block text-slate-300 text-[11px]">
+                      Selecione os arquivos do sistema (A IA lerá, sintetizará e indexará no banco):
+                    </label>
+                    <input
+                      type="file"
+                      multiple
+                      accept=".pdf,.txt,.md,.csv"
+                      onChange={e => {
+                        if (e.target.files) {
+                          setCreationRuleFiles(Array.from(e.target.files));
+                        }
+                      }}
+                      className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-slate-300 file:mr-2.5 file:py-1 file:px-2.5 file:rounded file:border-0 file:bg-amber-600 file:text-white file:cursor-pointer hover:file:bg-amber-500 text-[11px]"
+                    />
+                    {creationRuleFiles.length > 0 ? (
+                      <div className="p-2 bg-slate-900/90 rounded border border-slate-800 text-[11px] text-slate-300 space-y-1">
+                        <span className="font-semibold text-amber-400">Livros / Documentos prontos ({creationRuleFiles.length}):</span>
+                        <ul className="list-disc pl-4 text-slate-400 max-h-24 overflow-y-auto">
+                          {creationRuleFiles.map((file, idx) => (
+                            <li key={idx} className="truncate">
+                              {file.name} ({(file.size / 1024).toFixed(1)} KB)
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      <p className="text-[10px] text-amber-400/80 italic">
+                        * Dica: Você pode enviar o PDF do manual básico ou notas de homebrew em .md/.txt.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Seu Personagem (Nome, Perícias e Equipamentos)</label>
+                <label className="block text-slate-300 font-medium mb-1">Seu Personagem (Nome e Conceito)</label>
                 <textarea
                   rows={2}
-                  placeholder="Ex: Thorne (Guerreiro Nível 1). Força: +3, Destreza: +1. Possui espada longa e cota de malha."
+                  placeholder="Ex: Thorne, guerreiro renegado em busca de redenção nas terras ermas."
                   value={newCharacter}
                   onChange={e => setNewCharacter(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded p-2.5 text-slate-100 outline-none focus:border-amber-500"
                 />
+              </div>
+
+              {/* TABELA DINÂMICA DE ATRIBUTOS COM PRESETS E IMPORT/DOWNLOAD */}
+              <div className="p-3 bg-slate-950/70 border border-slate-800 rounded-lg space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span className="font-semibold text-amber-300 text-xs block">
+                      Atributos & Valores do Personagem
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      A IA interpretará as categorias e valores de acordo com as regras inseridas.
+                    </span>
+                  </div>
+
+                  {/* Ações de Modelo (Download e Upload) */}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleDownloadAttributeTemplate}
+                      className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-300 rounded text-[10px] flex items-center gap-1 transition cursor-pointer border border-slate-700"
+                      title="Baixar arquivo modelo (.json) para preenchimento"
+                    >
+                      <Download className="w-3 h-3 text-amber-400" />
+                      <span>Baixar Modelo</span>
+                    </button>
+
+                    <label
+                      className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-300 rounded text-[10px] flex items-center gap-1 transition cursor-pointer border border-slate-700"
+                      title="Importar atributos de arquivo .json ou .csv"
+                    >
+                      <FileSpreadsheet className="w-3 h-3 text-amber-400" />
+                      <span>Importar Ficha</span>
+                      <input
+                        type="file"
+                        accept=".json,.csv,.txt"
+                        className="hidden"
+                        onChange={handleImportAttributesFile}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {/* Presets Rápidos de 1 Clique */}
+                <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+                  <span className="text-[10px] text-slate-400 font-medium shrink-0">Modelos Prontos:</span>
+                  <button
+                    type="button"
+                    onClick={() => applyAttributePreset('d20')}
+                    className="px-2 py-0.5 bg-slate-900 hover:bg-amber-600/20 text-slate-300 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 rounded text-[10px] transition cursor-pointer whitespace-nowrap"
+                  >
+                    D20 Clássico
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyAttributePreset('cthulhu')}
+                    className="px-2 py-0.5 bg-slate-900 hover:bg-amber-600/20 text-slate-300 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 rounded text-[10px] transition cursor-pointer whitespace-nowrap"
+                  >
+                    Terror / Investigação
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyAttributePreset('cyberpunk')}
+                    className="px-2 py-0.5 bg-slate-900 hover:bg-amber-600/20 text-slate-300 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 rounded text-[10px] transition cursor-pointer whitespace-nowrap"
+                  >
+                    Cyberpunk
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyAttributePreset('narrative')}
+                    className="px-2 py-0.5 bg-slate-900 hover:bg-amber-600/20 text-slate-300 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 rounded text-[10px] transition cursor-pointer whitespace-nowrap"
+                  >
+                    Narrativo Leve
+                  </button>
+                </div>
+
+                {/* Tabela de Linhas de Atributos */}
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  {newAttributes.map((attr) => (
+                    <div key={attr.id} className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="Nome (Ex: Força, Sanidade, Astúcia)"
+                        value={attr.name}
+                        onChange={e => updateAttributeRow(attr.id, 'name', e.target.value)}
+                        className="flex-1 bg-slate-900 border border-slate-800 focus:border-amber-500 rounded px-2.5 py-1 text-slate-200 placeholder-slate-500 text-[11px] outline-none"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Valor (Ex: +3, 65%, 4d6)"
+                        value={attr.value}
+                        onChange={e => updateAttributeRow(attr.id, 'value', e.target.value)}
+                        className="w-28 sm:w-32 bg-slate-900 border border-slate-800 focus:border-amber-500 rounded px-2.5 py-1 text-amber-300 placeholder-slate-500 text-[11px] outline-none font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeAttributeRow(attr.id)}
+                        disabled={newAttributes.length <= 1}
+                        className="p-1 text-slate-400 hover:text-rose-400 disabled:opacity-30 rounded transition cursor-pointer shrink-0"
+                        title="Remover Atributo"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={addAttributeRow}
+                  className="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400/90 hover:text-amber-300 border border-dashed border-slate-800 hover:border-amber-500/40 rounded text-[10px] font-medium flex items-center justify-center gap-1 transition cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>Adicionar Outro Atributo / Perícia</span>
+                </button>
               </div>
 
               <div>
@@ -1820,10 +2394,20 @@ export function App() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded font-medium flex items-center gap-1.5 cursor-pointer"
+                  disabled={isCreatingCampaignLoading}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:bg-slate-800 text-white disabled:text-slate-400 rounded font-medium flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed transition"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  Iniciar Aventura
+                  {isCreatingCampaignLoading ? (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                      <span>Forjando Universo com IA...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Iniciar Aventura</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

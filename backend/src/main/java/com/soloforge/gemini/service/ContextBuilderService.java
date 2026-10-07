@@ -50,6 +50,10 @@ public class ContextBuilderService {
             if (bible.getWorldLore() != null) sb.append("Lore do Mundo:\n").append(bible.getWorldLore()).append("\n");
             if (bible.getToneAndStyle() != null) sb.append("Tom e Estilo Narrativo:\n").append(bible.getToneAndStyle()).append("\n");
             if (bible.getPlayerCharacter() != null) sb.append("Personagem do Jogador (PJ):\n").append(bible.getPlayerCharacter()).append("\n");
+            if (bible.getCharacterAttributes() != null && !bible.getCharacterAttributes().isBlank()) {
+                sb.append("Atributos & Valores do PJ (Interprete e use rigidamente conforme o livro de regras):\n")
+                  .append(bible.getCharacterAttributes()).append("\n");
+            }
             if (bible.getKeyThemes() != null) sb.append("Temas Principais:\n").append(bible.getKeyThemes()).append("\n");
             sb.append("\n");
         }

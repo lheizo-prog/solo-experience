@@ -31,6 +31,42 @@ public class CampaignController {
         return ResponseEntity.status(HttpStatus.CREATED).body(campaignService.createCampaign(request));
     }
 
+    /**
+     * Cria campanha e sintetiza regras a partir de múltiplos arquivos (.pdf, .txt, .md, .csv) em lote
+     */
+    @PostMapping(value = "/with-files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<CampaignDto.Response> createCampaignWithFiles(
+            @RequestParam("title") String title,
+            @RequestParam(value = "genre", required = false) String genre,
+            @RequestParam(value = "synopsis", required = false) String synopsis,
+            @RequestParam(value = "playerCharacter", required = false) String playerCharacter,
+            @RequestParam(value = "characterAttributes", required = false) String characterAttributes,
+            @RequestParam(value = "worldLore", required = false) String worldLore,
+            @RequestParam(value = "systemName", required = false) String systemName,
+            @RequestParam("files") List<MultipartFile> files) {
+
+        // 1. Cria a campanha com a base
+        CampaignDto.CreateRequest createReq = new CampaignDto.CreateRequest();
+        createReq.setTitle(title);
+        createReq.setGenre(genre);
+        createReq.setSynopsis(synopsis);
+        createReq.setPlayerCharacter(playerCharacter);
+        createReq.setCharacterAttributes(characterAttributes);
+        createReq.setWorldLore(worldLore);
+        createReq.setSystemName(systemName != null && !systemName.isBlank() ? systemName : "Sistema Personalizado");
+
+        CampaignDto.Response created = campaignService.createCampaign(createReq);
+
+        // 2. Extrai e sintetiza as regras com a IA a partir dos arquivos
+        if (files != null && !files.isEmpty()) {
+            String extracted = ruleDocumentService.extractTextFromFiles(files);
+            CampaignDto.UpdateSystemRequest synthesized = ruleDocumentService.synthesizeRules(extracted, createReq.getSystemName());
+            created = campaignService.updateSystem(created.getId(), synthesized);
+        }
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
     @GetMapping
     public ResponseEntity<List<CampaignDto.Response>> listCampaigns() {
         return ResponseEntity.ok(campaignService.listAllCampaigns());
@@ -80,5 +116,15 @@ public class CampaignController {
         CampaignDto.UpdateSystemRequest synthesized = ruleDocumentService.synthesizeRules(rawText, systemName);
         return ResponseEntity.ok(campaignService.updateSystem(id, synthesized));
     }
+
+    /**
+     * Exclui a campanha e todos os seus dados vinculados em cascata
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteCampaign(@PathVariable UUID id) {
+        campaignService.deleteCampaign(id);
+        return ResponseEntity.noContent().build();
+    }
 }
+
 
