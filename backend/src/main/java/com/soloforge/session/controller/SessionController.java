@@ -46,5 +46,10 @@ public class SessionController {
     public ResponseEntity<SessionDto.SessionResponse> concludeSession(@PathVariable UUID sessionId) {
         return ResponseEntity.ok(sessionService.concludeSession(sessionId));
     }
+
+    @PostMapping("/{sessionId}/regenerate")
+    public ResponseEntity<SessionDto.MessageResponse> regenerateLastMessage(@PathVariable UUID sessionId) {
+        return ResponseEntity.ok(sessionService.regenerateLastGmMessage(sessionId));
+    }
 }
 

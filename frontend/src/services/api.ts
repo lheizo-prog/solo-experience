@@ -146,6 +146,14 @@ export const api = {
     return res.json();
   },
 
+  async regenerateLastMessage(sessionId: string): Promise<Message> {
+    const res = await fetch(`${API_BASE_URL}/api/sessions/${sessionId}/regenerate`, {
+      method: 'POST'
+    });
+    if (!res.ok) throw new Error('Falha ao regenerar resposta do Mestre');
+    return res.json();
+  },
+
 
   // === ARCOS NARRATIVOS (QUESTS) ===
   async getArcs(campaignId: string): Promise<StoryArc[]> {

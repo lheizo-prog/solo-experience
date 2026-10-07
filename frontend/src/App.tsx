@@ -36,7 +36,9 @@ import {
   Zap,
   Compass,
   Eye,
-  EyeOff
+  EyeOff,
+  Eraser,
+  RefreshCw
 } from 'lucide-react';
 
 import { LoginScreen } from './components/LoginScreen';
@@ -63,6 +65,8 @@ export function App() {
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isConcludingSession, setIsConcludingSession] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isVisualChatCleared, setIsVisualChatCleared] = useState(false);
   const [isCreatingModal, setIsCreatingModal] = useState(false);
 
 
@@ -482,6 +486,53 @@ export function App() {
       scrollToBottom();
     } finally {
       setIsLoading(false);
+      setIsVisualChatCleared(false);
+    }
+  };
+
+  const handleRegenerateLastMessage = async () => {
+    if (!currentSession || isRegenerating || isLoading) return;
+
+    setIsRegenerating(true);
+    setPendingCheck(null);
+
+    try {
+      const updatedGmMsg = await api.regenerateLastMessage(currentSession.id);
+      setMessages(prev => {
+        // Substitui a última mensagem do GM
+        const copy = [...prev];
+        const lastGmIdx = copy.map(m => m.sender).lastIndexOf('GM');
+        if (lastGmIdx !== -1) {
+          copy[lastGmIdx] = updatedGmMsg;
+        } else {
+          copy.push(updatedGmMsg);
+        }
+        return copy;
+      });
+
+      const check = parseRollRequest(updatedGmMsg.content);
+      if (check) setPendingCheck(check);
+      scrollToBottom();
+    } catch (err: unknown) {
+      alert('Erro ao regenerar resposta do Mestre: ' + (err instanceof Error ? err.message : 'Falha na conexão'));
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  const handleClearVisualChat = () => {
+    if (messages.length === 0) return;
+    if (window.confirm('Deseja limpar a visualização da tela? (Suas memórias da campanha, decisões e atos gravados no banco continuarão 100% seguros).')) {
+      setMessages([]);
+      setIsVisualChatCleared(true);
+      setPendingCheck(null);
+    }
+  };
+
+  const handleRestoreVisualChat = () => {
+    if (currentSession) {
+      loadMessages(currentSession.id);
+      setIsVisualChatCleared(false);
     }
   };
 
@@ -1220,6 +1271,18 @@ export function App() {
               </button>
             )}
 
+            {/* Botão de Limpar Tela (Somente Visual) */}
+            {selectedCampaign && messages.length > 0 && (
+              <button
+                onClick={handleClearVisualChat}
+                className="px-2.5 sm:px-3 py-1.5 bg-slate-800/80 hover:bg-slate-750 text-slate-300 hover:text-amber-300 border border-slate-700/60 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
+                title="Limpar mensagens da visualização da tela (suas memórias e decisões no banco permanecem salvas)"
+              >
+                <Eraser className="w-3.5 h-3.5 text-slate-400" />
+                <span className="hidden md:inline">Limpar Tela</span>
+              </button>
+            )}
+
             {/* Botão de abrir painel direito (Fichas, Arcos, Regras) no mobile */}
             {selectedCampaign && (
               <button
@@ -1441,7 +1504,23 @@ export function App() {
           <>
             {/* Mensagens da Aventura */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {messages.length === 0 ? (
+              {/* Banner de Restauração quando o chat foi limpo visualmente */}
+              {isVisualChatCleared && messages.length === 0 && (
+                <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 text-center max-w-lg mx-auto space-y-3">
+                  <p className="text-xs text-slate-300">
+                    A visualização do chat foi limpa para uma nova cena. O histórico completo, suas decisões e os atos anteriores permanecem preservados no Grimório.
+                  </p>
+                  <button
+                    onClick={handleRestoreVisualChat}
+                    className="px-3.5 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Restaurar mensagens da sessão
+                  </button>
+                </div>
+              )}
+
+              {messages.length === 0 && !isVisualChatCleared ? (
                 <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto text-slate-400 space-y-3">
                   <div className="p-4 bg-slate-900 rounded-full border border-slate-800 text-amber-500">
                     <Flame className="w-8 h-8" />
@@ -1452,9 +1531,10 @@ export function App() {
                   </p>
                 </div>
               ) : (
-                messages.map((msg) => {
+                messages.map((msg, idx) => {
                   const isPlayer = msg.sender === 'PLAYER';
                   const isSystem = msg.sender === 'SYSTEM';
+                  const isLastGmMessage = !isPlayer && !isSystem && idx === messages.map(m => m.sender).lastIndexOf('GM');
 
                   if (isSystem) {
                     return (
@@ -1497,6 +1577,22 @@ export function App() {
                         }`}>
                           {cleanDisplayContent(msg.content)}
                         </div>
+
+                        {/* Botão de Regenerar Resposta na última mensagem do GM */}
+                        {isLastGmMessage && (
+                          <div className="mt-1.5 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleRegenerateLastMessage}
+                              disabled={isRegenerating || isLoading}
+                              className="px-2.5 py-1 bg-slate-900/90 hover:bg-slate-800 disabled:opacity-40 text-amber-400 hover:text-amber-300 border border-slate-800 hover:border-amber-500/40 rounded-md text-[11px] font-medium flex items-center gap-1.5 transition cursor-pointer"
+                              title="Solicita ao Mestre uma nova narração para a ação anterior"
+                            >
+                              <RotateCcw className={`w-3 h-3 ${isRegenerating ? 'animate-spin' : ''}`} />
+                              <span>{isRegenerating ? 'Consultando novamente...' : 'Tentar outra resposta'}</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

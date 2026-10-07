@@ -144,6 +144,46 @@ public class GameSessionService {
         return toMessageDto(savedGmMsg);
     }
 
+    @Transactional
+    public SessionDto.MessageResponse regenerateLastGmMessage(UUID sessionId) {
+        Session session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Sessão não encontrada"));
+
+        List<Message> history = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
+        if (history.isEmpty()) {
+            throw new IllegalStateException("Nenhuma mensagem na sessão para regenerar");
+        }
+
+        // Se a última mensagem for do GM, removemos para regerar com base na mensagem anterior do jogador
+        Message lastMsg = history.get(history.size() - 1);
+        if ("GM".equalsIgnoreCase(lastMsg.getSender())) {
+            messageRepository.delete(lastMsg);
+            history.remove(history.size() - 1);
+        }
+
+        // Montar histórico restante
+        List<Map<String, String>> formattedHistory = new ArrayList<>();
+        for (Message msg : history) {
+            formattedHistory.add(Map.of(
+                    "role", "PLAYER".equalsIgnoreCase(msg.getSender()) ? "PLAYER" : "MODEL",
+                    "text", (msg.getSenderName() != null ? msg.getSenderName() + ": " : "") + msg.getContent()
+            ));
+        }
+
+        String systemInstruction = contextBuilderService.buildMasterPrompt(session.getCampaign());
+        String gmNarrative = geminiService.generateStoryResponse(systemInstruction, formattedHistory);
+
+        Message newGmMsg = Message.builder()
+                .session(session)
+                .sender("GM")
+                .senderName("Mestre IA")
+                .content(gmNarrative)
+                .build();
+        Message saved = messageRepository.save(newGmMsg);
+
+        return toMessageDto(saved);
+    }
+
     private SessionDto.SessionResponse toSessionDto(Session s) {
         return SessionDto.SessionResponse.builder()
                 .id(s.getId())
