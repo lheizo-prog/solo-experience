@@ -1138,28 +1138,57 @@ export function App() {
   const cleanDisplayContent = (content: string) => {
     if (!content) return '';
 
-    // 1. Se contiver a tag <narrativa>...</narrativa>, extrai puramente o interior
-    const xmlMatch = content.match(/<narrativa>([\s\S]*?)(?:<\/narrativa>|$)/i);
+    let cleaned = content;
+
+    // 1. Remove qualquer bloco de pensamento formalmente declarado
+    cleaned = cleaned.replace(/<pensamento>[\s\S]*?<\/pensamento>/gi, '');
+    cleaned = cleaned.replace(/<scratchpad>[\s\S]*?<\/scratchpad>/gi, '');
+    cleaned = cleaned.replace(/\[PENSAMENTO\][\s\S]*?\[\/PENSAMENTO\]/gi, '');
+
+    // 2. Se contiver a tag <narrativa>...</narrativa>, extrai puramente o interior
+    const xmlMatch = cleaned.match(/<narrativa>([\s\S]*?)(?:<\/narrativa>|$)/i);
     if (xmlMatch && xmlMatch[1]?.trim()) {
-      return xmlMatch[1].replace(/\[PEDIR_TESTE:[^\]]+\]/g, '').trim();
+      cleaned = xmlMatch[1].trim();
+    } else {
+      // Se contiver [NARRATIVA]...[/NARRATIVA]
+      const bracketMatch = cleaned.match(/\[NARRATIVA\]([\s\S]*?)(?:\[\/NARRATIVA\]|$)/i);
+      if (bracketMatch && bracketMatch[1]?.trim()) {
+        cleaned = bracketMatch[1].trim();
+      }
     }
 
-    // 2. Se contiver [NARRATIVA]...[/NARRATIVA]
-    const bracketMatch = content.match(/\[NARRATIVA\]([\s\S]*?)(?:\[\/NARRATIVA\]|$)/i);
-    if (bracketMatch && bracketMatch[1]?.trim()) {
-      return bracketMatch[1].replace(/\[PEDIR_TESTE:[^\]]+\]/g, '').trim();
-    }
+    // 3. Remove tags internas de teste mecânico da visualização do balão de texto (pois viram botão interativo)
+    cleaned = cleaned.replace(/\[PEDIR_TESTE:[^\]]+\]/g, '').trim();
 
-    let cleaned = content.replace(/\[PEDIR_TESTE:[^\]]+\]/g, '').trim();
-
-    // 3. Corte de cabeçalhos de rascunho (*Drafting response:*, *Cena:*, etc.)
-    const startMatch = cleaned.match(/(?:\*(?:Drafting response|Cena|A Cena|Narrativa)\*|\b(?:Drafting response|Cena|Narrativa):\s*)/i);
-    if (startMatch && startMatch.index !== undefined && startMatch.index > 20) {
+    // 4. Corte de cabeçalhos de rascunho (*Drafting response:*, *Cena:*, etc.)
+    const startMatch = cleaned.match(/(?:^\s*\*+(?:Drafting response:?|Draft:?|Cena:?|A Cena:?)\*+|\b(?:Drafting response|Cena):)\s*\n?/im);
+    if (startMatch && startMatch.index !== undefined) {
       cleaned = cleaned.substring(startMatch.index + startMatch[0].length).trim();
     }
 
-    // 4. Corte de checklists finais (*Check against rules:*, *Final Polish.*, etc.)
-    const endMatch = cleaned.match(/(?:\*(?:Check against rules|Final Polish|Auto-correção|Self-correction)\*|\b(?:Check against rules|Notes):)/i);
+    // 5. Higienização de tópicos de pensamento que possam ter vazado no início
+    const lines = cleaned.split(/\r?\n/);
+    let startIndex = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      const isThoughtLine = /^\*\s*\*(?:Sem notas|Sem metalinguagem|Foco na imersão|Conclusão|Ajuste de tom|Decisão do Mestre)/i.test(line)
+        || /^\*\s*\(?(?:Decisão do Mestre|Ajuste de tom|Tom|Objetivo|Conexão com o personagem|O ambiente deve ser)\)?/i.test(line)
+        || /^\*?\s*\(?(?:Decisão do Mestre|Drafting response)\)?/i.test(line)
+        || /^\*\s*(?:Shonen|Seinen|Grimdark|O tom deve ser|O objetivo d[eo]|O ambiente deve)/i.test(line);
+
+      if (isThoughtLine) {
+        startIndex = i + 1;
+      } else {
+        break;
+      }
+    }
+    if (startIndex > 0 && startIndex < lines.length) {
+      cleaned = lines.slice(startIndex).join('\n').trim();
+    }
+
+    // 6. Corte de checklists finais (*Check against rules:*, *Final Polish.*, etc.)
+    const endMatch = cleaned.match(/(?:^\s*\*+(?:Check against rules|Final Polish|Auto-correção|Self-correction|Notas de bastidores)\*+|Check against rules:|Notes:)/im);
     if (endMatch && endMatch.index !== undefined) {
       cleaned = cleaned.substring(0, endMatch.index).trim();
     }

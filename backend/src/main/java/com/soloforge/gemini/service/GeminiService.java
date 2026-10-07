@@ -195,51 +195,105 @@ public class GeminiService {
 
     /**
      * Extrai cirurgicamente a narração oficial destinada ao jogador, descartando qualquer
-     * scratchpad/pensamento interno, rascunho de bastidores ou checklist de auto-revisão.
+     * scratchpad/pensamento interno, rascunho de bastidores ou checklist de auto-revisão,
+     * mesmo que tenham vazado para dentro das tags ou aparecido desordenadamente.
      */
     public static String extractPlayerNarrative(String rawResponse) {
         if (rawResponse == null || rawResponse.isBlank()) {
             return "";
         }
 
-        // 1. Tenta extrair o bloco estritamente delimitado por <narrativa>...</narrativa>
-        Pattern xmlPattern = Pattern.compile("<narrativa>([\\s\\S]*?)(?:</narrativa>|$)", Pattern.CASE_INSENSITIVE);
-        Matcher xmlMatcher = xmlPattern.matcher(rawResponse);
+        String cleaned = rawResponse;
+
+        // 1. Remove qualquer bloco de pensamento formalmente declarado
+        cleaned = cleaned.replaceAll("(?is)<pensamento>.*?</pensamento>", "");
+        cleaned = cleaned.replaceAll("(?is)<scratchpad>.*?</scratchpad>", "");
+        cleaned = cleaned.replaceAll("(?is)\\[PENSAMENTO\\].*?\\[/PENSAMENTO\\]", "");
+
+        // 2. Tenta extrair o bloco estritamente delimitado por <narrativa>...</narrativa>
+        Pattern xmlPattern = Pattern.compile("(?is)<narrativa>([\\s\\S]*?)(?:</narrativa>|$)");
+        Matcher xmlMatcher = xmlPattern.matcher(cleaned);
         if (xmlMatcher.find()) {
             String narrative = xmlMatcher.group(1).trim();
             if (!narrative.isEmpty()) {
-                return narrative;
+                cleaned = narrative;
+            }
+        } else {
+            // Tenta variação entre colchetes [NARRATIVA]...[/NARRATIVA]
+            Pattern bracketPattern = Pattern.compile("(?is)\\[NARRATIVA\\]([\\s\\S]*?)(?:\\[/NARRATIVA\\]|$)");
+            Matcher bracketMatcher = bracketPattern.matcher(cleaned);
+            if (bracketMatcher.find()) {
+                String narrative = bracketMatcher.group(1).trim();
+                if (!narrative.isEmpty()) {
+                    cleaned = narrative;
+                }
             }
         }
 
-        // 2. Tenta extrair variação entre colchetes [NARRATIVA]...[/NARRATIVA]
-        Pattern bracketPattern = Pattern.compile("\\[NARRATIVA\\]([\\s\\S]*?)(?:\\[/NARRATIVA\\]|$)", Pattern.CASE_INSENSITIVE);
-        Matcher bracketMatcher = bracketPattern.matcher(rawResponse);
-        if (bracketMatcher.find()) {
-            String narrative = bracketMatcher.group(1).trim();
-            if (!narrative.isEmpty()) {
-                return narrative;
-            }
+        // 3. Higienização de Resíduos: Se a IA incluiu cabeçalhos de início de rascunho
+        // Ex: "*Drafting response:*", "*Draft:*", "**Drafting response:**", "*Cena:*", "*A Cena:*"
+        Pattern startMarkerPattern = Pattern.compile("(?im)^\\s*(?:\\*+Drafting response:?\\*+|\\*+Draft:?\\*+|\\*+Cena:?\\*+|\\*+A Cena:?\\*+|Drafting response:|Cena:)\\s*\\n?");
+        Matcher startMarkerMatcher = startMarkerPattern.matcher(cleaned);
+        if (startMarkerMatcher.find()) {
+            cleaned = cleaned.substring(startMarkerMatcher.end()).trim();
         }
 
-        // 3. Fallback inteligente: se a IA não utilizou as tags delimitadoras, limpa rascunhos conhecidos
-        String cleaned = rawResponse;
+        // 4. Higienização de linhas iniciais de metalinguagem / pensamento em tópicos
+        // Ex: "* O ambiente deve ser...", "* Sem notas de bastidores.", "*(Decisão do Mestre)*:", "* Shonen/Seinen..."
+        cleaned = sanitizeLeadingThoughtBullets(cleaned);
 
-        // Se houver marcador de início da cena (Drafting response:, Cena:, etc.)
-        Pattern startPattern = Pattern.compile("(?i)(\\*(?:Drafting response|Cena|A Cena|Narrativa)\\*|\\b(?:Drafting response|Cena|Narrativa):\\s*)");
-        Matcher startMatcher = startPattern.matcher(cleaned);
-        if (startMatcher.find() && startMatcher.start() > 20) {
-            cleaned = cleaned.substring(startMatcher.end()).trim();
-        }
-
-        // Se houver marcador de checklist de encerramento (Check against rules:, Final Polish, etc.)
-        Pattern endPattern = Pattern.compile("(?i)(\\*(?:Check against rules|Final Polish|Auto-correção|Self-correction)\\*|\\b(?:Check against rules|Notes):)");
+        // 5. Higienização de Checklists e notas de rodapé / encerramento
+        // Ex: "*Check against rules*", "*Final Polish*", "Self-correction:", "Notas de bastidores:"
+        Pattern endPattern = Pattern.compile("(?im)^\\s*(?:\\*+(?:Check against rules|Final Polish|Auto-correção|Self-correction|Notas de bastidores)\\*+|Check against rules:|Notes:).*$");
         Matcher endMatcher = endPattern.matcher(cleaned);
         if (endMatcher.find()) {
             cleaned = cleaned.substring(0, endMatcher.start()).trim();
         }
 
-        return cleaned;
+        return cleaned.trim();
+    }
+
+    /**
+     * Remove linhas ou parágrafos iniciais que sejam metalinguagem de bastidores,
+     * como diretrizes de tom ou listas de intenções narrativas que vazaram antes da prosa real.
+     */
+    private static String sanitizeLeadingThoughtBullets(String text) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+
+        String[] lines = text.split("\\r?\\n");
+        int startIndex = 0;
+
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].trim();
+            if (line.isEmpty()) {
+                continue;
+            }
+
+            // Padrões típicos de pensamento que não pertencem à narração em 2ª pessoa
+            boolean isThoughtLine = line.matches("(?i)^\\*\\s*\\*(?:Sem notas|Sem metalinguagem|Foco na imersão|Conclusão|Ajuste de tom|Decisão do Mestre).*")
+                    || line.matches("(?i)^\\*\\s*\\(?(?:Decisão do Mestre|Ajuste de tom|Tom|Objetivo|Conexão com o personagem|O ambiente deve ser)\\)?.*")
+                    || line.matches("(?i)^\\*?\\s*\\(?(?:Decisão do Mestre|Drafting response)\\)?.*")
+                    || line.matches("(?i)^\\*\\s*(?:Shonen|Seinen|Grimdark|O tom deve ser|O objetivo d[eo]|O ambiente deve).*");
+
+            if (isThoughtLine) {
+                startIndex = i + 1;
+            } else {
+                // Se encontramos uma linha normal da história, interrompemos
+                break;
+            }
+        }
+
+        if (startIndex > 0 && startIndex < lines.length) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = startIndex; i < lines.length; i++) {
+                sb.append(lines[i]).append("\n");
+            }
+            return sb.toString().trim();
+        }
+
+        return text;
     }
 
     /**

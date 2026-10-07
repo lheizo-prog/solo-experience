@@ -142,13 +142,15 @@ public class ContextBuilderService {
         }
 
 
-        sb.append("=== PROTOCOLO OBRIGATÓRIO DE DELIMITAÇÃO DA RESPOSTA ===\n");
-        sb.append("Você é incentivado a pensar e planejar internamente sobre as regras, DT e física do cenário.\n");
-        sb.append("NO ENTANTO, a narração oficial destinada ao jogador DEVE ser obrigatoriamente delimitada entre as tags <narrativa> e </narrativa>:\n\n");
+        sb.append("=== PROTOCOLO ESTRITO DE RESPOSTA (BIPARTIDO) ===\n");
+        sb.append("Sua resposta DEVE seguir rigorosamente esta estrutura de duas partes:\n\n");
+        sb.append("<pensamento>\n");
+        sb.append("Aqui você faz todo o seu raciocínio interno: checagem de atributos, avaliação de DT, intenções dramáticas, tom e reflexões de bastidores.\n");
+        sb.append("</pensamento>\n");
         sb.append("<narrativa>\n");
-        sb.append("[Aqui entra única e exclusivamente a narração viva da cena em 2ª pessoa, rica sensorialmente, sem cabeçalhos de bastidores, concluindo com o dilema 'O que você faz?' e a tag [PEDIR_TESTE: ...] se cabível]\n");
+        sb.append("Aqui entra EXCLUSIVAMENTE a prosa viva e imersiva dirigida ao jogador em 2ª pessoa ('Você...'), sem nenhum cabeçalho, sem reflexões, sem notas de tom, encerrando com o dilema 'O que você faz?' e a tag [PEDIR_TESTE: ...] se cabível.\n");
         sb.append("</narrativa>\n\n");
-        sb.append("NUNCA coloque notas de planejamento, rascunhos de escrita ou checklists de auto-correção dentro de <narrativa>. A plataforma SoloForge extrairá apenas o interior de <narrativa> para exibir na tela do jogador.\n\n");
+        sb.append("REGRA INVIOLÁVEL: É TERMINANTEMENTE PROIBIDO colocar pensamentos, títulos como 'Drafting response', 'Decisão do Mestre', 'Ajuste de tom' ou listas de intenções dentro de <narrativa>. O jogador verá apenas o conteúdo de <narrativa>.\n\n");
 
         sb.append("=== DIRETRIZES ESTATUTÁRIAS DO MESTRE (ÁRBITRO DE REGRAS) ===\n");
         sb.append("1. **ÁRBITRO IMPARCIAL DAS REGRAS**:\n");
