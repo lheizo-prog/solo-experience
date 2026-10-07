@@ -1068,7 +1068,17 @@ export function App() {
   };
 
   const cleanDisplayContent = (content: string) => {
-    return content.replace(/\[PEDIR_TESTE:[^\]]+\]/g, '').trim();
+    let cleaned = content.replace(/\[PEDIR_TESTE:[^\]]+\]/g, '').trim();
+
+    // Se o modelo vazou rascunho de planejamento e colocou um marcador de cena (ex: *Cena:* ou Cena:),
+    // exibimos diretamente o conteúdo a partir da cena limpa.
+    const sceneMarkerRegex = /(\*(?:Cena|A Cena|Narrativa)\*|\b(?:Cena|Narrativa):\s*)/i;
+    const match = cleaned.match(sceneMarkerRegex);
+    if (match && match.index !== undefined && match.index > 50) {
+      cleaned = cleaned.substring(match.index + match[0].length).trim();
+    }
+
+    return cleaned;
   };
 
   if (!isAuthenticated) {
