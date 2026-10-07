@@ -85,4 +85,21 @@ class GeminiServiceTest {
         assertFalse(result.contains("Check against rules"));
         assertFalse(result.contains("DT compatível"));
     }
+
+    @Test
+    void testFallbackWhenNarrativeBecomesEmpty() {
+        // Cenário onde o modelo gastou tokens em pensamento e a narrativa ficou vazia
+        String input = """
+            <pensamento>
+            Raciocínio longo de 1000 tokens sobre o ambiente e regras...
+            </pensamento>
+            <narrativa>
+            </narrativa>
+            """;
+
+        String result = GeminiService.extractPlayerNarrative(input);
+        assertNotNull(result);
+        assertFalse(result.isBlank());
+        assertTrue(result.contains("O Mestre aguarda sua decisão") || result.contains("Raciocínio longo"));
+    }
 }

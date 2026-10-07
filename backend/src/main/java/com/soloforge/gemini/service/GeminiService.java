@@ -160,12 +160,12 @@ public class GeminiService {
         }
         requestBody.put("contents", contents);
 
-        // Generation config (calibração de criatividade, foco narrativo e concisão)
+        // Generation config (calibração de criatividade e limite confortável de 4096 tokens)
         requestBody.put("generationConfig", Map.of(
                 "temperature", 0.8,
                 "topP", 0.95,
                 "topK", 40,
-                "maxOutputTokens", 1024
+                "maxOutputTokens", 4096
         ));
 
         Exception lastException = null;
@@ -187,6 +187,7 @@ public class GeminiService {
                     if (parts.isArray() && !parts.isEmpty()) {
                         log.info("Gemini respondeu com sucesso usando o modelo: {}", modelToTry);
                         String rawText = parts.get(0).path("text").asText();
+                        log.debug("Gemini Raw Response: {}", rawText);
                         return extractPlayerNarrative(rawText);
                     }
                 }
@@ -222,19 +223,13 @@ public class GeminiService {
         Pattern xmlPattern = Pattern.compile("(?is)<narrativa>([\\s\\S]*?)(?:</narrativa>|$)");
         Matcher xmlMatcher = xmlPattern.matcher(cleaned);
         if (xmlMatcher.find()) {
-            String narrative = xmlMatcher.group(1).trim();
-            if (!narrative.isEmpty()) {
-                cleaned = narrative;
-            }
+            cleaned = xmlMatcher.group(1).trim();
         } else {
             // Tenta variação entre colchetes [NARRATIVA]...[/NARRATIVA]
             Pattern bracketPattern = Pattern.compile("(?is)\\[NARRATIVA\\]([\\s\\S]*?)(?:\\[/NARRATIVA\\]|$)");
             Matcher bracketMatcher = bracketPattern.matcher(cleaned);
             if (bracketMatcher.find()) {
-                String narrative = bracketMatcher.group(1).trim();
-                if (!narrative.isEmpty()) {
-                    cleaned = narrative;
-                }
+                cleaned = bracketMatcher.group(1).trim();
             }
         }
 
@@ -258,7 +253,21 @@ public class GeminiService {
             cleaned = cleaned.substring(0, endMatcher.start()).trim();
         }
 
-        return cleaned.trim();
+        String finalResult = cleaned.trim();
+
+        // 6. Salvaguarda Anti-Vazio: se após os cortes a string resultar em branco,
+        // recupera o texto bruto ou fornece um retorno de cena ativo do Mestre
+        if (finalResult.isEmpty()) {
+            // Tenta recuperar do texto bruto sem tags de pensamento
+            String withoutThoughts = rawResponse.replaceAll("(?is)<pensamento>.*?</pensamento>", "")
+                    .replaceAll("(?is)</?(?:narrativa|scratchpad)>", "").trim();
+            if (!withoutThoughts.isEmpty()) {
+                return withoutThoughts;
+            }
+            return "O Mestre aguarda sua decisão. O que você faz a seguir?";
+        }
+
+        return finalResult;
     }
 
     /**

@@ -1209,7 +1209,17 @@ export function App() {
       cleaned = cleaned.substring(0, endMatch.index).trim();
     }
 
-    return cleaned;
+    const finalResult = cleaned.trim();
+    if (!finalResult) {
+      // Se sobrou vazio após os cortes, recupera o conteúdo original removendo apenas as tags XML literais
+      const fallback = content.replace(/<\/?(?:narrativa|pensamento|scratchpad)>/gi, '')
+        .replace(/\[PEDIR_TESTE:[^\]]+\]/g, '')
+        .replace(/\[DICAS_DE_ACAO:[^\]]+\]/g, '')
+        .trim();
+      return fallback || 'O Mestre aguarda sua decisão. O que você faz a seguir?';
+    }
+
+    return finalResult;
   };
 
   if (!isAuthenticated) {
