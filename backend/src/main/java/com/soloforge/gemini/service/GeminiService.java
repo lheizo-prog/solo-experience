@@ -194,10 +194,35 @@ public class GeminiService {
                         log.info("Gemini respondeu com sucesso usando o modelo: {}", modelToTry);
                         String rawText = parts.get(0).path("text").asText();
                         log.debug("Gemini Raw Response: {}", rawText);
-                        return extractPlayerNarrative(rawText);
+
+                        // Avaliação Precisa: Verificar se a resposta é puramente pensamento/brainstorm sem prosa efetiva
+                        if (isPureThoughtLeak(rawText)) {
+                            log.warn("Detectado vazamento de pensamento puro sem narrativa para o jogador no modelo [{}]. Solicitando reformulação imediata...", modelToTry);
+                            String reformulated = requestReformulation(systemInstruction, rawText, modelToTry);
+                            if (reformulated != null && !reformulated.isBlank() && !isPureThoughtLeak(reformulated)) {
+                                log.info("Gemini reformulou com sucesso em prosa oficial para o jogador!");
+                                return extractPlayerNarrative(reformulated);
+                            }
+                            log.warn("Tentativa de reformulação falhou ou repetiu pensamento. Extraindo melhor esforço ou tentando próximo modelo...");
+                        }
+
+                        String extracted = extractPlayerNarrative(rawText);
+                        // Se a extração resultou em algo consistente (não vazio e não fallback padrão de silêncio), retorna
+                        if (extracted != null && !extracted.isBlank() && !extracted.startsWith("O Mestre permanece em silêncio") && !extracted.startsWith("O Mestre aguarda sua decisão")) {
+                            return extracted;
+                        }
+
+                        // Se ficou vazio, tenta reformular usando o texto bruto original antes de desistir do modelo
+                        String retryText = requestReformulation(systemInstruction, rawText, modelToTry);
+                        if (retryText != null && !retryText.isBlank()) {
+                            String retryExtracted = extractPlayerNarrative(retryText);
+                            if (retryExtracted != null && !retryExtracted.isBlank()) {
+                                return retryExtracted;
+                            }
+                        }
                     }
                 }
-                return "O Mestre permanece em silêncio contemplando o destino...";
+                log.warn("Modelo [{}] retornou resposta vazia ou sem narrativa. Tentando próximo modelo candidato...", modelToTry);
             } catch (Exception e) {
                 lastException = e;
                 log.warn("Tentativa com modelo Gemini [{}] falhou: {}. Tentando próximo modelo...", modelToTry, e.getMessage());
@@ -478,6 +503,165 @@ public class GeminiService {
 
         log.error("Todos os modelos candidatos falharam em generateContent");
         return "";
+    }
+
+    /**
+     * Avaliador de Precisão Semântica: Detecta se a resposta é PENSAMENTO PURO da IA
+     * sem nenhuma prosa viva dirigida ao jogador, evitando falsos positivos.
+     * Retorna true APENAS se preencher os critérios cumulativos de brainstorm técnico.
+     */
+    public static boolean isPureThoughtLeak(String rawResponse) {
+        if (rawResponse == null || rawResponse.isBlank()) {
+            return false;
+        }
+
+        String cleaned = stripCodeFences(rawResponse).trim();
+
+        // 1. Se contém tag explícita <narrativa>, [NARRATIVA] ou <story> com texto substancial, NÃO é vazamento puro
+        Pattern xmlPattern = Pattern.compile("(?is)<narrativa>([\\s\\S]*?)(?:</narrativa>|$)");
+        Matcher xmlMatcher = xmlPattern.matcher(cleaned);
+        if (xmlMatcher.find() && xmlMatcher.group(1).trim().length() > 40) {
+            return false;
+        }
+
+        Pattern bracketPattern = Pattern.compile("(?is)\\[NARRATIVA\\]([\\s\\S]*?)(?:\\[/NARRATIVA\\]|$)");
+        Matcher bracketMatcher = bracketPattern.matcher(cleaned);
+        if (bracketMatcher.find() && bracketMatcher.group(1).trim().length() > 40) {
+            return false;
+        }
+
+        // 2. Se contém prosa viva com diálogo e pergunta de agência, NÃO é pensamento puro
+        boolean hasDialogueOrQuotes = cleaned.contains("\"") || cleaned.contains("“") || cleaned.contains("”") || cleaned.matches("(?m)^\\s*—.*");
+        boolean hasPlayerAgencyQuestion = Pattern.compile("(?i)O que você faz\\?").matcher(cleaned).find();
+        if (hasDialogueOrQuotes && hasPlayerAgencyQuestion && cleaned.length() > 100) {
+            // Verifica se a maior parte NÃO é bullet list
+            String[] lines = cleaned.split("\\r?\\n");
+            int bulletCount = 0;
+            int totalNonEmpty = 0;
+            for (String l : lines) {
+                String trimmed = l.trim();
+                if (!trimmed.isEmpty()) {
+                    totalNonEmpty++;
+                    if (trimmed.matches("^[*-]\\s*.*") || trimmed.matches("^\\d+\\.\\s*.*")) {
+                        bulletCount++;
+                    }
+                }
+            }
+            if (totalNonEmpty > 0 && ((double) bulletCount / totalNonEmpty) < 0.6) {
+                return false;
+            }
+        }
+
+        // 3. Indicadores fortes de Brainstorm Técnico (English self-talk, checklists, fichas e rascunhos)
+        int technicalIndicators = 0;
+
+        // Auto-conversa em inglês do modelo
+        if (Pattern.compile("(?im)\\b(?:Let's|Wait,|Looking at|I will|The player|The scene should|Personality:|Twist:|Ending:|Decision:)\\b").matcher(cleaned).find()) {
+            technicalIndicators++;
+        }
+
+        // Checklist booleano no final (ex: "2nd person? Yes", "No headers? Yes")
+        if (Pattern.compile("(?im)^\\s*(?:[*-]\\s*)?[a-zA-Z0-9\\s_-]+\\?\\s*(?:Yes|Sim|No|Não|Checked)\\.?").matcher(cleaned).find()) {
+            technicalIndicators++;
+        }
+
+        // Marcadores explícitos de rascunho (ex: "*Drafting Narrative:*", "*Drafting response:*")
+        if (Pattern.compile("(?im)(?:\\*Drafting|Drafting Narrative|Draft Narrative|\\*Ending:\\*|\\*Decision:\\*)").matcher(cleaned).find()) {
+            technicalIndicators++;
+        }
+
+        // Repetição de ficha de personagem no início
+        if (Pattern.compile("(?im)^(?:FOR|KI|VEL|RES|ESP|DES|CON|INT|SAB|CAR)\\s*\\d+").matcher(cleaned).find()) {
+            technicalIndicators++;
+        }
+
+        // Proporção dominante de bullets (lista de notas)
+        String[] lines = cleaned.split("\\r?\\n");
+        int bulletCount = 0;
+        int totalNonEmpty = 0;
+        for (String l : lines) {
+            String trimmed = l.trim();
+            if (!trimmed.isEmpty()) {
+                totalNonEmpty++;
+                if (trimmed.matches("^[*-]\\s*.*") || trimmed.matches("^\\d+\\.\\s*.*")) {
+                    bulletCount++;
+                }
+            }
+        }
+
+        boolean mostlyBullets = totalNonEmpty > 0 && ((double) bulletCount / totalNonEmpty) >= 0.6;
+        if (mostlyBullets) {
+            technicalIndicators++;
+        }
+
+        // Considera Pensamento Puro apenas se houver pelo menos 2 indicadores técnicos claros e predominância de notas
+        return technicalIndicators >= 2;
+    }
+
+    /**
+     * Solicita reformulação imediata ao Gemini quando um vazamento de pensamento é detectado,
+     * reaproveitando o raciocínio rico já gerado e exigindo a narrativa oficial em prosa viva.
+     */
+    private String requestReformulation(String systemInstruction, String rawDraft, String modelToUse) {
+        if (apiKey == null || apiKey.isBlank() || rawDraft == null || rawDraft.isBlank()) {
+            return null;
+        }
+
+        try {
+            String endpoint = String.format("%s/%s:generateContent?key=%s", baseUrl, modelToUse, apiKey);
+
+            String reformulationPrompt = """
+                [ALERTA DO SISTEMA - AUTO-CORREÇÃO DE PROTOCOLO]:
+                Você realizou o raciocínio de regras, DT e intenção dramática, mas NÃO entregou a cena narrativa para o jogador.
+                
+                Com base no seu raciocínio prévio:
+                \"\"\"
+                %s
+                \"\"\"
+                
+                Escreva AGORA a prosa narrativa oficial dirigida ao jogador em 2ª pessoa ('Você...'), em português, dentro de:
+                <narrativa>
+                (Sua prosa viva, imersiva, diálogos dos personagens, encerrando com 'O que você faz?' e a tag [PEDIR_TESTE: ...] se cabível)
+                </narrativa>
+                
+                PROIBIDO gerar notas de bastidores, rascunhos em inglês ('Drafting Narrative', 'Let's') ou checklists ('2nd person? Yes'). Apenas a narrativa final para o jogador!
+                """.formatted(rawDraft.length() > 2500 ? rawDraft.substring(0, 2500) : rawDraft);
+
+            Map<String, Object> requestBody = new HashMap<>();
+            if (systemInstruction != null && !systemInstruction.isBlank()) {
+                requestBody.put("system_instruction", Map.of(
+                        "parts", List.of(Map.of("text", systemInstruction))
+                ));
+            }
+            requestBody.put("contents", List.of(Map.of(
+                    "role", "user",
+                    "parts", List.of(Map.of("text", reformulationPrompt))
+            )));
+
+            Map<String, Object> genConfig = new HashMap<>();
+            genConfig.put("temperature", 0.7);
+            genConfig.put("maxOutputTokens", 65536);
+            requestBody.put("generationConfig", genConfig);
+
+            String responseJson = restClient.post()
+                    .uri(endpoint)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(requestBody)
+                    .retrieve()
+                    .body(String.class);
+
+            JsonNode root = objectMapper.readTree(responseJson);
+            JsonNode candidate = root.path("candidates").get(0);
+            if (candidate != null) {
+                JsonNode parts = candidate.path("content").path("parts");
+                if (parts.isArray() && !parts.isEmpty()) {
+                    return parts.get(0).path("text").asText();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Falha na chamada de reformulação automática com modelo [{}]: {}", modelToUse, e.getMessage());
+        }
+        return null;
     }
 }
 

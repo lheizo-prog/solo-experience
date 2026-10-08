@@ -288,5 +288,53 @@ class GeminiServiceTest {
         // Deve preservar a tag mecânica
         assertTrue(result.contains("[PEDIR_TESTE: d20 | DT: 14 | Resistência | Executar o Kata do Punho Quebrador até o fim]"));
     }
+
+    @Test
+    void testIsPureThoughtLeakDetectsRealLeak() {
+        String leakedText = """
+            Zanshin Dojo, morning training.
+            Mestre Zemi (Strict, values purity of body/spirit, dislikes shortcuts).
+            
+            * Zemi sees Reny as a "rough diamond".
+            * The player is exhausted.
+            * Let's test Resistance or Strength.
+            * Decision: Test RES against DT 14.
+            * 2nd person? Yes.
+            * No headers? Yes.
+            * Concise? Yes.
+            """;
+
+        assertTrue(GeminiService.isPureThoughtLeak(leakedText), "Deve detectar vazamento de pensamento puro com precisão");
+    }
+
+    @Test
+    void testIsPureThoughtLeakAvoidsFalsePositiveOnValidNarrative() {
+        // Resposta curta e objetiva de combate com tag mecânica - NÃO pode ser descartada
+        String validShortCombat = """
+            Você avança furtivamente pela escuridão. O silêncio da noite é quebrado pelo estalar de um galho à sua frente.
+            
+            "Quem está aí?", ecoa uma voz áspera. O que você faz?
+            [PEDIR_TESTE: d20 | DT: 13 | Furtividade | Manter-se oculto nas sombras]
+            """;
+
+        assertFalse(GeminiService.isPureThoughtLeak(validShortCombat), "Não deve classificar narrativa válida com diálogo e ação como vazamento");
+    }
+
+    @Test
+    void testIsPureThoughtLeakAvoidsFalsePositiveOnXmlTaggedNarrative() {
+        String taggedResponse = """
+            <pensamento>
+            - O jogador quer correr pelo telhado.
+            - DT 12 de Acrobacia.
+            </pensamento>
+            <narrativa>
+            Você salta sobre os telhados úmidos da cidadela enquanto a chuva cai torrencialmente. O que você faz?
+            [PEDIR_TESTE: d20 | DT: 12 | Acrobacia | Cruzar os telhados]
+            </narrativa>
+            """;
+
+        assertFalse(GeminiService.isPureThoughtLeak(taggedResponse), "Respostas com tag <narrativa> válida nunca devem ser consideradas vazamento puro");
+    }
 }
+
 
