@@ -597,25 +597,23 @@ export function App() {
         applyPendingCheck(check);
       }
       scrollToBottom();
-    } catch {
-      let mockReply = '';
-      if (isDiceRoll) {
-        mockReply = `[SoloForge GM]: O som dos dados ecoa no chão de pedra! Vejo seu resultado para o teste. Diante do esforço, as circunstâncias se desenrolam à sua volta... O que você faz a seguir?`;
-      } else {
-        mockReply = `[SoloForge GM]: Diante de sua intenção "${textToSend}", o Mestre analisa suas capacidades e a física do ambiente. O peso da decisão se faz sentir.\n\n[PEDIR_TESTE: d20 | DT: 14 | Reflexos | Agir antes que o perigo se concretize]`;
+    } catch (err) {
+      console.error('Erro ao enviar mensagem:', err);
+      // Reverte mensagem temporária não confirmada no backend
+      setMessages(prev => prev.filter(m => m.id !== optimisticMsg.id));
+      if (customText === undefined) {
+        setInputText(textToSend); // Devolve o texto digitado ao input para não perder o que foi escrito
       }
 
-      const gmMsg: Message = {
-        id: 'mock-' + Date.now(),
+      const errorMsg: Message = {
+        id: 'err-' + Date.now(),
         sessionId: currentSession.id,
-        sender: 'GM',
-        senderName: 'Mestre IA',
-        content: mockReply,
+        sender: 'SYSTEM',
+        senderName: 'SoloForge - Conexão',
+        content: `⚠️ [Falha de Comunicação]: Não foi possível enviar a mensagem para o servidor. Verifique a conexão com o backend e tente novamente.`,
         createdAt: new Date().toISOString()
       };
-      setMessages(prev => [...prev, gmMsg]);
-      const check = parseRollRequest(mockReply);
-      if (check) applyPendingCheck(check);
+      setMessages(prev => [...prev, errorMsg]);
       scrollToBottom();
     } finally {
       setIsLoading(false);
@@ -677,7 +675,7 @@ export function App() {
   ) => {
     // Se o jogador já tiver digitado algo no input do chat, aproveita como intenção inicial
     const initialText = inputText.trim();
-    setRollActionMessage(initialText);
+    setRollActionMessage(initialText || (!checkTarget ? 'Rolagem livre de dados' : ''));
     setRollConfirmData({
       sides,
       checkTarget,
@@ -690,7 +688,8 @@ export function App() {
   const executeRollConfirmed = (actionDescription: string) => {
     if (!rollConfirmData) return;
     const { sides, checkTarget, count, mode, bonus } = rollConfirmData;
-    rollDice(sides, checkTarget, count, mode, bonus, actionDescription.trim());
+    const finalDesc = actionDescription.trim() || (!checkTarget ? 'Rolagem livre de dados' : '');
+    rollDice(sides, checkTarget, count, mode, bonus, finalDesc);
     setRollConfirmData(null);
     setRollActionMessage('');
     // Se o texto confirmado era o que estava no input do chat, limpa o input
@@ -4028,7 +4027,11 @@ export function App() {
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
                     <span>Descreva a ação / fala do seu personagem</span>
-                    <span className="text-amber-400 text-[11px] font-normal">*Obrigatório</span>
+                    {rollConfirmData.checkTarget ? (
+                      <span className="text-amber-400 text-[11px] font-normal">*Obrigatório para Teste</span>
+                    ) : (
+                      <span className="text-slate-400 text-[11px] font-normal">(Opcional)</span>
+                    )}
                   </label>
                   <span className="text-[10px] text-slate-400">
                     A IA avaliará essa narrativa junto ao resultado
@@ -4042,7 +4045,7 @@ export function App() {
                   placeholder={
                     rollConfirmData.checkTarget
                       ? `Ex: Firma os pés no chão, aperta o bastão e tenta ${rollConfirmData.checkTarget.reason.toLowerCase()} com determinação...`
-                      : "Ex: Descreva o golpe, o feitiço ou a tentativa que motivou esta rolagem..."
+                      : "Ex: Descreva o golpe, o feitiço ou a intenção que motivou esta rolagem (opcional)..."
                   }
                   className="w-full bg-slate-950 border border-slate-700/80 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl p-3 text-sm text-slate-100 placeholder-slate-500 outline-none transition"
                 />
@@ -4060,7 +4063,7 @@ export function App() {
               </button>
               <button
                 type="button"
-                disabled={!rollActionMessage.trim()}
+                disabled={rollConfirmData.checkTarget ? !rollActionMessage.trim() : false}
                 onClick={() => executeRollConfirmed(rollActionMessage)}
                 className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-slate-950 font-bold rounded-xl text-xs sm:text-sm flex items-center gap-2 transition shadow-lg shadow-amber-600/20 cursor-pointer disabled:cursor-not-allowed"
               >

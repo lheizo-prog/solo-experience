@@ -10,6 +10,7 @@ import com.soloforge.session.dto.SessionDto;
 import com.soloforge.session.entity.Session;
 import com.soloforge.session.repository.SessionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class GameSessionService {
 
     private final SessionRepository sessionRepository;
@@ -58,14 +60,13 @@ public class GameSessionService {
         return toSessionDto(sessionRepository.save(session));
     }
 
-    @Transactional
     public SessionDto.SessionResponse concludeSession(UUID sessionId) {
         Session session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("Sessão não encontrada: " + sessionId));
 
         List<Message> messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
         
-        // Solicita ao Gemini para gerar um resumo crônico conciso
+        // Solicita ao Gemini para gerar um resumo crônico conciso fora da transação
         String summary = "Sessão concluída.";
         if (!messages.isEmpty()) {
             StringBuilder conversationText = new StringBuilder();
@@ -85,10 +86,16 @@ public class GameSessionService {
             );
         }
 
+        return saveSessionSummaryAndCreateNext(sessionId, summary);
+    }
+
+    @Transactional
+    public SessionDto.SessionResponse saveSessionSummaryAndCreateNext(UUID sessionId, String summary) {
+        Session session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Sessão não encontrada: " + sessionId));
         session.setSummary(summary);
         Session saved = sessionRepository.save(session);
 
-        // Cria automaticamente o próximo Ato
         Campaign campaign = session.getCampaign();
         int nextNumber = session.getSessionNumber() + 1;
         Session nextSession = Session.builder()
@@ -101,20 +108,12 @@ public class GameSessionService {
         return toSessionDto(saved);
     }
 
-
-    @Transactional
     public SessionDto.MessageResponse sendPlayerMessage(UUID sessionId, SessionDto.CreateMessageRequest request) {
         Session session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("Sessão não encontrada"));
 
-        // 1. Salvar mensagem do jogador
-        Message playerMsg = Message.builder()
-                .session(session)
-                .sender("PLAYER")
-                .senderName(request.getSenderName() != null ? request.getSenderName() : "Jogador")
-                .content(request.getContent())
-                .build();
-        messageRepository.save(playerMsg);
+        // 1. Salvar mensagem do jogador atomicamente no banco antes da chamada de rede
+        savePlayerMessage(session, request);
 
         // 2. Montar histórico para a IA com janela deslizante (últimas 14 mensagens para evitar perda de atenção)
         List<Message> history = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
@@ -132,10 +131,34 @@ public class GameSessionService {
         // 3. Montar contexto com Bíblia, Regras, Arcos e NPCs
         String systemInstruction = contextBuilderService.buildMasterPrompt(session.getCampaign());
 
-        // 4. Invocar Gemini
-        String gmNarrative = geminiService.generateStoryResponse(systemInstruction, formattedHistory);
+        // 4. Invocar Gemini fora da transação de banco
+        String gmNarrative;
+        try {
+            gmNarrative = geminiService.generateStoryResponse(systemInstruction, formattedHistory);
+        } catch (Exception e) {
+            log.error("Falha ao invocar Gemini na sessão {}: {}", sessionId, e.getMessage());
+            gmNarrative = "O Mestre aguarda sua decisão. O que você faz a seguir?";
+        }
 
-        // 5. Salvar resposta do GM
+        // 5. Salvar resposta do GM atomicamente
+        return saveGmMessage(sessionId, gmNarrative);
+    }
+
+    @Transactional
+    public Message savePlayerMessage(Session session, SessionDto.CreateMessageRequest request) {
+        Message playerMsg = Message.builder()
+                .session(session)
+                .sender("PLAYER")
+                .senderName(request.getSenderName() != null ? request.getSenderName() : "Jogador")
+                .content(request.getContent())
+                .build();
+        return messageRepository.save(playerMsg);
+    }
+
+    @Transactional
+    public SessionDto.MessageResponse saveGmMessage(UUID sessionId, String gmNarrative) {
+        Session session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("Sessão não encontrada"));
         Message gmMesg = Message.builder()
                 .session(session)
                 .sender("GM")
@@ -143,28 +166,22 @@ public class GameSessionService {
                 .content(gmNarrative)
                 .build();
         Message savedGmMsg = messageRepository.save(gmMesg);
-
         return toMessageDto(savedGmMsg);
     }
 
-    @Transactional
     public SessionDto.MessageResponse regenerateLastGmMessage(UUID sessionId) {
         Session session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("Sessão não encontrada"));
 
+        // Remove última mensagem do GM se existir, de forma transacional
+        removeLastGmMessageIfExists(sessionId);
+
+        // Montar histórico restante com janela deslizante (últimas 14 mensagens)
         List<Message> history = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
         if (history.isEmpty()) {
             throw new IllegalStateException("Nenhuma mensagem na sessão para regenerar");
         }
 
-        // Se a última mensagem for do GM, removemos para regerar com base na mensagem anterior do jogador
-        Message lastMsg = history.get(history.size() - 1);
-        if ("GM".equalsIgnoreCase(lastMsg.getSender())) {
-            messageRepository.delete(lastMsg);
-            history.remove(history.size() - 1);
-        }
-
-        // Montar histórico restante com janela deslizante (últimas 14 mensagens)
         int startIndex = Math.max(0, history.size() - 14);
         List<Message> recentHistory = history.subList(startIndex, history.size());
 
@@ -177,17 +194,26 @@ public class GameSessionService {
         }
 
         String systemInstruction = contextBuilderService.buildMasterPrompt(session.getCampaign());
-        String gmNarrative = geminiService.generateStoryResponse(systemInstruction, formattedHistory);
+        String gmNarrative;
+        try {
+            gmNarrative = geminiService.generateStoryResponse(systemInstruction, formattedHistory);
+        } catch (Exception e) {
+            log.error("Falha ao invocar Gemini na regeneração da sessão {}: {}", sessionId, e.getMessage());
+            gmNarrative = "O Mestre aguarda sua decisão. O que você faz a seguir?";
+        }
 
-        Message newGmMsg = Message.builder()
-                .session(session)
-                .sender("GM")
-                .senderName("Mestre IA")
-                .content(gmNarrative)
-                .build();
-        Message saved = messageRepository.save(newGmMsg);
+        return saveGmMessage(sessionId, gmNarrative);
+    }
 
-        return toMessageDto(saved);
+    @Transactional
+    public void removeLastGmMessageIfExists(UUID sessionId) {
+        List<Message> history = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
+        if (!history.isEmpty()) {
+            Message lastMsg = history.get(history.size() - 1);
+            if ("GM".equalsIgnoreCase(lastMsg.getSender())) {
+                messageRepository.delete(lastMsg);
+            }
+        }
     }
 
     private SessionDto.SessionResponse toSessionDto(Session s) {

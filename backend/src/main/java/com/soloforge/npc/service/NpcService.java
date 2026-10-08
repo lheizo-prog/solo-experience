@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.soloforge.campaign.entity.Campaign;
 import com.soloforge.campaign.entity.CampaignSystem;
 import com.soloforge.campaign.repository.CampaignRepository;
+import com.soloforge.common.util.JsonExtractor;
 import com.soloforge.gemini.service.GeminiService;
 import com.soloforge.npc.dto.NpcDto;
 import com.soloforge.npc.entity.Npc;
@@ -100,7 +101,7 @@ public class NpcService {
                 prompt
         );
 
-        String cleanJson = generatedJson.replaceAll("```json", "").replaceAll("```", "").trim();
+        String cleanJson = JsonExtractor.extractJsonObject(generatedJson);
 
         String name = "Novo " + targetType;
         String role = targetType.equalsIgnoreCase("BOSS") ? "Chefe de Ameaça" : "Habitante";
@@ -193,7 +194,7 @@ public class NpcService {
                 prompt
         );
 
-        String cleanJson = generatedJson.replaceAll("```json", "").replaceAll("```", "").trim();
+        String cleanJson = JsonExtractor.extractJsonObject(generatedJson);
 
         try {
             if (!cleanJson.isBlank()) {

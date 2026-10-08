@@ -200,37 +200,44 @@ public class GeminiService {
                             log.warn("Detectado vazamento de pensamento puro sem narrativa para o jogador no modelo [{}]. Solicitando reformulação imediata...", modelToTry);
                             String reformulated = requestReformulation(systemInstruction, rawText, modelToTry);
                             if (reformulated != null && !reformulated.isBlank() && !isPureThoughtLeak(reformulated)) {
-                                log.info("Gemini reformulou com sucesso em prosa oficial para o jogador!");
-                                return extractPlayerNarrative(reformulated);
+                                String cleanReformulated = extractPlayerNarrative(reformulated);
+                                if (isValidPlayerNarrative(cleanReformulated)) {
+                                    log.info("Gemini reformulou com sucesso em prosa oficial para o jogador!");
+                                    return cleanReformulated;
+                                }
                             }
                             log.warn("Tentativa de reformulação falhou ou repetiu pensamento. Extraindo melhor esforço ou tentando próximo modelo...");
                         }
 
                         String extracted = extractPlayerNarrative(rawText);
-                        // Se a extração resultou em algo consistente (não vazio e não fallback padrão de silêncio), retorna
-                        if (extracted != null && !extracted.isBlank() && !extracted.startsWith("O Mestre permanece em silêncio") && !extracted.startsWith("O Mestre aguarda sua decisão")) {
+                        if (isValidPlayerNarrative(extracted)) {
                             return extracted;
                         }
 
-                        // Se ficou vazio, tenta reformular usando o texto bruto original antes de desistir do modelo
+                        // Se ficou inválido ou vazio, tenta reformular antes de pular para o próximo modelo candidato
                         String retryText = requestReformulation(systemInstruction, rawText, modelToTry);
                         if (retryText != null && !retryText.isBlank()) {
                             String retryExtracted = extractPlayerNarrative(retryText);
-                            if (retryExtracted != null && !retryExtracted.isBlank()) {
+                            if (isValidPlayerNarrative(retryExtracted)) {
                                 return retryExtracted;
                             }
                         }
                     }
                 }
-                log.warn("Modelo [{}] retornou resposta vazia ou sem narrativa. Tentando próximo modelo candidato...", modelToTry);
+                log.warn("Modelo [{}] retornou resposta sem narrativa válida para o jogador. Tentando próximo modelo candidato...", modelToTry);
             } catch (Exception e) {
                 lastException = e;
                 log.warn("Tentativa com modelo Gemini [{}] falhou: {}. Tentando próximo modelo...", modelToTry, e.getMessage());
             }
         }
 
-        log.error("Todos os modelos candidatos do Gemini falharam", lastException);
-        return "Erro ao contatar o oráculo do Gemini: " + (lastException != null ? lastException.getMessage() : "Nenhum modelo respondeu");
+        if (lastException != null) {
+            log.error("Todos os modelos candidatos do Gemini falharam com exceção de conexão/API", lastException);
+            return "Erro ao contatar o oráculo do Gemini: " + lastException.getMessage();
+        }
+
+        log.warn("Todos os modelos candidatos responderam sem narrativa válida. Usando salvaguarda de continuidade.");
+        return "O Mestre aguarda sua decisão. O que você faz a seguir?";
     }
 
     /**
@@ -641,6 +648,9 @@ public class GeminiService {
             Map<String, Object> genConfig = new HashMap<>();
             genConfig.put("temperature", 0.7);
             genConfig.put("maxOutputTokens", 65536);
+            if (modelToUse.contains("2.5") || modelToUse.contains("2.0")) {
+                genConfig.put("thinkingConfig", Map.of("thinkingBudget", 0));
+            }
             requestBody.put("generationConfig", genConfig);
 
             String responseJson = restClient.post()
@@ -662,6 +672,19 @@ public class GeminiService {
             log.warn("Falha na chamada de reformulação automática com modelo [{}]: {}", modelToUse, e.getMessage());
         }
         return null;
+    }
+
+    /**
+     * Valida se uma narrativa extraída é real e legível para o jogador,
+     * descartando fallbacks estáticos ou respostas de erro.
+     */
+    public static boolean isValidPlayerNarrative(String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+        String trimmed = text.trim();
+        return !trimmed.startsWith("O Mestre permanece em silêncio")
+                && !trimmed.startsWith("O Mestre aguarda sua decisão");
     }
 }
 

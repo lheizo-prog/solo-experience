@@ -3,6 +3,7 @@ package com.soloforge.campaign.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.soloforge.campaign.dto.CampaignDto;
+import com.soloforge.common.util.JsonExtractor;
 import com.soloforge.gemini.service.GeminiService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -83,18 +84,7 @@ public class RuleDocumentService {
 
         CampaignDto.UpdateSystemRequest dto = new CampaignDto.UpdateSystemRequest();
         try {
-            // Limpa crases se vierem por engano
-            String cleanedJson = response.trim();
-            if (cleanedJson.startsWith("```json")) {
-                cleanedJson = cleanedJson.substring(7);
-            }
-            if (cleanedJson.startsWith("```")) {
-                cleanedJson = cleanedJson.substring(3);
-            }
-            if (cleanedJson.endsWith("```")) {
-                cleanedJson = cleanedJson.substring(0, cleanedJson.length() - 3);
-            }
-            cleanedJson = cleanedJson.trim();
+            String cleanedJson = JsonExtractor.extractJsonObject(response);
 
             JsonNode node = objectMapper.readTree(cleanedJson);
             dto.setName(node.has("name") ? node.get("name").asText() : (systemName != null ? systemName : "Sistema Sintetizado"));
