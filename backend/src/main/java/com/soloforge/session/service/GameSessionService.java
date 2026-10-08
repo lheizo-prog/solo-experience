@@ -115,10 +115,9 @@ public class GameSessionService {
         // 1. Salvar mensagem do jogador atomicamente no banco antes da chamada de rede
         savePlayerMessage(session, request);
 
-        // 2. Montar histórico para a IA com janela deslizante (últimas 14 mensagens para evitar perda de atenção)
-        List<Message> history = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
-        int startIndex = Math.max(0, history.size() - 14);
-        List<Message> recentHistory = history.subList(startIndex, history.size());
+        // 2. Montar histórico para a IA com janela deslizante (últimas 14 mensagens otimizadas pelo banco)
+        List<Message> recentHistory = new ArrayList<>(messageRepository.findTop14BySessionIdOrderByCreatedAtDesc(sessionId));
+        Collections.reverse(recentHistory);
 
         List<Map<String, String>> formattedHistory = new ArrayList<>();
         for (Message msg : recentHistory) {
@@ -176,14 +175,12 @@ public class GameSessionService {
         // Remove última mensagem do GM se existir, de forma transacional
         removeLastGmMessageIfExists(sessionId);
 
-        // Montar histórico restante com janela deslizante (últimas 14 mensagens)
-        List<Message> history = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
-        if (history.isEmpty()) {
+        // Montar histórico restante com janela deslizante (últimas 14 mensagens otimizadas pelo banco)
+        List<Message> recentHistory = new ArrayList<>(messageRepository.findTop14BySessionIdOrderByCreatedAtDesc(sessionId));
+        if (recentHistory.isEmpty()) {
             throw new IllegalStateException("Nenhuma mensagem na sessão para regenerar");
         }
-
-        int startIndex = Math.max(0, history.size() - 14);
-        List<Message> recentHistory = history.subList(startIndex, history.size());
+        Collections.reverse(recentHistory);
 
         List<Map<String, String>> formattedHistory = new ArrayList<>();
         for (Message msg : recentHistory) {

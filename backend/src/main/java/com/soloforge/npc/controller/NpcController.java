@@ -14,7 +14,6 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/campaigns/{campaignId}/npcs")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class NpcController {
 
     private final NpcService npcService;
@@ -43,7 +42,7 @@ public class NpcController {
             @PathVariable UUID campaignId,
             @PathVariable UUID npcId,
             @RequestBody NpcDto.UpdateRequest request) {
-        return ResponseEntity.ok(npcService.updateNpc(npcId, request));
+        return ResponseEntity.ok(npcService.updateNpc(campaignId, npcId, request));
     }
 
     @PostMapping("/{npcId}/evolve")
@@ -58,14 +57,14 @@ public class NpcController {
     public ResponseEntity<NpcDto.Response> toggleCrystallize(
             @PathVariable UUID campaignId,
             @PathVariable UUID npcId) {
-        return ResponseEntity.ok(npcService.toggleCrystallization(npcId));
+        return ResponseEntity.ok(npcService.toggleCrystallization(campaignId, npcId));
     }
 
     @DeleteMapping("/{npcId}")
     public ResponseEntity<Void> deleteNpc(
             @PathVariable UUID campaignId,
             @PathVariable UUID npcId) {
-        npcService.deleteNpc(npcId);
+        npcService.deleteNpc(campaignId, npcId);
         return ResponseEntity.noContent().build();
     }
 }

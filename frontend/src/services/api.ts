@@ -218,6 +218,20 @@ export const api = {
     return res.json();
   },
 
+  async updateDecision(campaignId: string, decisionId: string, data: {
+    title?: string;
+    decision?: string;
+    consequence?: string;
+  }): Promise<WorldDecision> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/decisions/${decisionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Falha ao atualizar decisão');
+    return res.json();
+  },
+
   async deleteDecision(campaignId: string, decisionId: string): Promise<void> {
     const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/decisions/${decisionId}`, {
       method: 'DELETE'

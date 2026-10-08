@@ -44,9 +44,13 @@ public class StoryArcService {
     }
 
     @Transactional
-    public ArcDto.Response updateArcProgress(UUID arcId, ArcDto.UpdateProgressRequest request) {
+    public ArcDto.Response updateArcProgress(UUID campaignId, UUID arcId, ArcDto.UpdateProgressRequest request) {
         StoryArc arc = storyArcRepository.findById(arcId)
                 .orElseThrow(() -> new IllegalArgumentException("Arco narrativo não encontrado: " + arcId));
+
+        if (!arc.getCampaign().getId().equals(campaignId)) {
+            throw new IllegalArgumentException("O arco narrativo não pertence à campanha especificada: " + campaignId);
+        }
 
         if (request.getStatus() != null && !request.getStatus().isBlank()) {
             arc.setStatus(request.getStatus().toUpperCase());
@@ -59,8 +63,15 @@ public class StoryArcService {
     }
 
     @Transactional
-    public void deleteArc(UUID arcId) {
-        storyArcRepository.deleteById(arcId);
+    public void deleteArc(UUID campaignId, UUID arcId) {
+        StoryArc arc = storyArcRepository.findById(arcId)
+                .orElseThrow(() -> new IllegalArgumentException("Arco narrativo não encontrado: " + arcId));
+
+        if (!arc.getCampaign().getId().equals(campaignId)) {
+            throw new IllegalArgumentException("O arco narrativo não pertence à campanha especificada: " + campaignId);
+        }
+
+        storyArcRepository.delete(arc);
     }
 
     private ArcDto.Response toDto(StoryArc entity) {

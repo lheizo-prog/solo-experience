@@ -150,6 +150,10 @@ public class NpcService {
         Npc npc = npcRepository.findById(npcId)
                 .orElseThrow(() -> new IllegalArgumentException("NPC não encontrado: " + npcId));
 
+        if (!npc.getCampaign().getId().equals(campaignId)) {
+            throw new IllegalArgumentException("O NPC não pertence à campanha especificada: " + campaignId);
+        }
+
         Campaign campaign = npc.getCampaign();
         CampaignSystem system = campaign.getSystem();
         String systemName = system != null ? system.getName() : "Sistema Genérico";
@@ -222,9 +226,13 @@ public class NpcService {
     }
 
     @Transactional
-    public NpcDto.Response updateNpc(UUID npcId, NpcDto.UpdateRequest request) {
+    public NpcDto.Response updateNpc(UUID campaignId, UUID npcId, NpcDto.UpdateRequest request) {
         Npc npc = npcRepository.findById(npcId)
                 .orElseThrow(() -> new IllegalArgumentException("NPC não encontrado: " + npcId));
+
+        if (!npc.getCampaign().getId().equals(campaignId)) {
+            throw new IllegalArgumentException("O NPC não pertence à campanha especificada: " + campaignId);
+        }
 
         if (request.getName() != null && !request.getName().isBlank()) {
             npc.setName(request.getName());
@@ -241,17 +249,28 @@ public class NpcService {
     }
 
     @Transactional
-    public NpcDto.Response toggleCrystallization(UUID npcId) {
+    public NpcDto.Response toggleCrystallization(UUID campaignId, UUID npcId) {
         Npc npc = npcRepository.findById(npcId)
                 .orElseThrow(() -> new IllegalArgumentException("NPC não encontrado: " + npcId));
+
+        if (!npc.getCampaign().getId().equals(campaignId)) {
+            throw new IllegalArgumentException("O NPC não pertence à campanha especificada: " + campaignId);
+        }
 
         npc.setIsCrystallized(!Boolean.TRUE.equals(npc.getIsCrystallized()));
         return toDto(npcRepository.save(npc));
     }
 
     @Transactional
-    public void deleteNpc(UUID npcId) {
-        npcRepository.deleteById(npcId);
+    public void deleteNpc(UUID campaignId, UUID npcId) {
+        Npc npc = npcRepository.findById(npcId)
+                .orElseThrow(() -> new IllegalArgumentException("NPC não encontrado: " + npcId));
+
+        if (!npc.getCampaign().getId().equals(campaignId)) {
+            throw new IllegalArgumentException("O NPC não pertence à campanha especificada: " + campaignId);
+        }
+
+        npcRepository.delete(npc);
     }
 
     private NpcDto.Response toDto(Npc entity) {

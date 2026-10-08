@@ -13,7 +13,6 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/sessions")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class SessionController {
 
     private final GameSessionService sessionService;

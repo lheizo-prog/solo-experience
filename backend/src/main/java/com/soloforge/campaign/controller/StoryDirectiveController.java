@@ -14,7 +14,6 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/campaigns/{campaignId}/directives")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class StoryDirectiveController {
 
     private final StoryDirectiveService directiveService;
@@ -35,7 +34,7 @@ public class StoryDirectiveController {
     public ResponseEntity<StoryDirectiveDto.Response> toggleActive(
             @PathVariable UUID campaignId,
             @PathVariable UUID directiveId) {
-        return ResponseEntity.ok(directiveService.toggleActive(directiveId));
+        return ResponseEntity.ok(directiveService.toggleActive(campaignId, directiveId));
     }
 
     @PutMapping("/{directiveId}")
@@ -43,14 +42,14 @@ public class StoryDirectiveController {
             @PathVariable UUID campaignId,
             @PathVariable UUID directiveId,
             @RequestBody StoryDirectiveDto.UpdateRequest request) {
-        return ResponseEntity.ok(directiveService.updateDirective(directiveId, request));
+        return ResponseEntity.ok(directiveService.updateDirective(campaignId, directiveId, request));
     }
 
     @DeleteMapping("/{directiveId}")
     public ResponseEntity<Void> deleteDirective(
             @PathVariable UUID campaignId,
             @PathVariable UUID directiveId) {
-        directiveService.deleteDirective(directiveId);
+        directiveService.deleteDirective(campaignId, directiveId);
         return ResponseEntity.noContent().build();
     }
 }

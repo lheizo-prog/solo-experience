@@ -14,7 +14,6 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/campaigns/{campaignId}/arcs")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class StoryArcController {
 
     private final StoryArcService storyArcService;
@@ -36,14 +35,14 @@ public class StoryArcController {
             @PathVariable UUID campaignId,
             @PathVariable UUID arcId,
             @RequestBody ArcDto.UpdateProgressRequest request) {
-        return ResponseEntity.ok(storyArcService.updateArcProgress(arcId, request));
+        return ResponseEntity.ok(storyArcService.updateArcProgress(campaignId, arcId, request));
     }
 
     @DeleteMapping("/{arcId}")
     public ResponseEntity<Void> deleteArc(
             @PathVariable UUID campaignId,
             @PathVariable UUID arcId) {
-        storyArcService.deleteArc(arcId);
+        storyArcService.deleteArc(campaignId, arcId);
         return ResponseEntity.noContent().build();
     }
 }

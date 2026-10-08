@@ -14,7 +14,6 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/campaigns/{campaignId}/decisions")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class WorldDecisionController {
 
     private final WorldDecisionService worldDecisionService;
@@ -31,11 +30,19 @@ public class WorldDecisionController {
         return ResponseEntity.status(HttpStatus.CREATED).body(worldDecisionService.createDecision(campaignId, request));
     }
 
+    @PatchMapping("/{decisionId}")
+    public ResponseEntity<WorldDecisionDto.Response> updateDecision(
+            @PathVariable UUID campaignId,
+            @PathVariable UUID decisionId,
+            @RequestBody WorldDecisionDto.UpdateRequest request) {
+        return ResponseEntity.ok(worldDecisionService.updateDecision(campaignId, decisionId, request));
+    }
+
     @DeleteMapping("/{decisionId}")
     public ResponseEntity<Void> deleteDecision(
             @PathVariable UUID campaignId,
             @PathVariable UUID decisionId) {
-        worldDecisionService.deleteDecision(decisionId);
+        worldDecisionService.deleteDecision(campaignId, decisionId);
         return ResponseEntity.noContent().build();
     }
 }

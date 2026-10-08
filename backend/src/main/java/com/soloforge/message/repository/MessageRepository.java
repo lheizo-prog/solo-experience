@@ -10,5 +10,6 @@ import java.util.UUID;
 @Repository
 public interface MessageRepository extends JpaRepository<Message, UUID> {
     List<Message> findBySessionIdOrderByCreatedAtAsc(UUID sessionId);
+    List<Message> findTop14BySessionIdOrderByCreatedAtDesc(UUID sessionId);
     List<Message> findTop30BySessionIdOrderByCreatedAtDesc(UUID sessionId);
 }

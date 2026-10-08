@@ -21,6 +21,13 @@ public class WorldDecisionDto {
     }
 
     @Data
+    public static class UpdateRequest {
+        private String title;
+        private String decision;
+        private String consequence;
+    }
+
+    @Data
     @Builder
     public static class Response {
         private UUID id;

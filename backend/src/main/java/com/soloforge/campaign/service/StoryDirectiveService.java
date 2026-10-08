@@ -43,18 +43,26 @@ public class StoryDirectiveService {
     }
 
     @Transactional
-    public StoryDirectiveDto.Response toggleActive(UUID directiveId) {
+    public StoryDirectiveDto.Response toggleActive(UUID campaignId, UUID directiveId) {
         StoryDirective directive = directiveRepository.findById(directiveId)
                 .orElseThrow(() -> new IllegalArgumentException("Diretriz não encontrada: " + directiveId));
+
+        if (!directive.getCampaign().getId().equals(campaignId)) {
+            throw new IllegalArgumentException("A diretriz não pertence à campanha especificada: " + campaignId);
+        }
 
         directive.setIsActive(!Boolean.TRUE.equals(directive.getIsActive()));
         return toDto(directiveRepository.save(directive));
     }
 
     @Transactional
-    public StoryDirectiveDto.Response updateDirective(UUID directiveId, StoryDirectiveDto.UpdateRequest request) {
+    public StoryDirectiveDto.Response updateDirective(UUID campaignId, UUID directiveId, StoryDirectiveDto.UpdateRequest request) {
         StoryDirective directive = directiveRepository.findById(directiveId)
                 .orElseThrow(() -> new IllegalArgumentException("Diretriz não encontrada: " + directiveId));
+
+        if (!directive.getCampaign().getId().equals(campaignId)) {
+            throw new IllegalArgumentException("A diretriz não pertence à campanha especificada: " + campaignId);
+        }
 
         if (request.getDirective() != null && !request.getDirective().isBlank()) {
             directive.setDirective(request.getDirective());
@@ -70,8 +78,15 @@ public class StoryDirectiveService {
     }
 
     @Transactional
-    public void deleteDirective(UUID directiveId) {
-        directiveRepository.deleteById(directiveId);
+    public void deleteDirective(UUID campaignId, UUID directiveId) {
+        StoryDirective directive = directiveRepository.findById(directiveId)
+                .orElseThrow(() -> new IllegalArgumentException("Diretriz não encontrada: " + directiveId));
+
+        if (!directive.getCampaign().getId().equals(campaignId)) {
+            throw new IllegalArgumentException("A diretriz não pertence à campanha especificada: " + campaignId);
+        }
+
+        directiveRepository.delete(directive);
     }
 
     private StoryDirectiveDto.Response toDto(StoryDirective entity) {

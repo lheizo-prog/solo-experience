@@ -794,20 +794,8 @@ export function App() {
       setIsNewArcModal(false);
       setNewArcTitle('');
       setNewArcGoal('');
-    } catch {
-      const mockArc: StoryArc = {
-        id: 'arc-' + Date.now(),
-        campaignId: selectedCampaign.id,
-        title: newArcTitle,
-        goal: newArcGoal,
-        status: 'ACTIVE',
-        currentProgress: 'Iniciado recentemente.',
-        createdAt: new Date().toISOString()
-      };
-      setArcs(prev => [mockArc, ...prev]);
-      setIsNewArcModal(false);
-      setNewArcTitle('');
-      setNewArcGoal('');
+    } catch (err: unknown) {
+      alert('Erro ao criar arco narrativo: ' + (err instanceof Error ? err.message : 'Falha na comunicação com o servidor'));
     }
   };
 
@@ -820,8 +808,8 @@ export function App() {
         currentProgress: nextStatus === 'COMPLETED' ? 'Objetivo concluído com sucesso!' : 'Em andamento.'
       });
       setArcs(prev => prev.map(a => a.id === arc.id ? updated : a));
-    } catch {
-      setArcs(prev => prev.map(a => a.id === arc.id ? { ...a, status: nextStatus } : a));
+    } catch (err: unknown) {
+      alert('Erro ao atualizar status do arco: ' + (err instanceof Error ? err.message : 'Falha na comunicação com o servidor'));
     }
   };
 
@@ -830,8 +818,8 @@ export function App() {
     try {
       await api.deleteArc(selectedCampaign.id, arcId);
       setArcs(prev => prev.filter(a => a.id !== arcId));
-    } catch {
-      setArcs(prev => prev.filter(a => a.id !== arcId));
+    } catch (err: unknown) {
+      alert('Erro ao deletar arco: ' + (err instanceof Error ? err.message : 'Falha na comunicação com o servidor'));
     }
   };
 
@@ -851,20 +839,8 @@ export function App() {
       setNewDecisionTitle('');
       setNewDecisionAction('');
       setNewDecisionConsequence('');
-    } catch {
-      const mockDec: WorldDecision = {
-        id: 'dec-' + Date.now(),
-        campaignId: selectedCampaign.id,
-        title: newDecisionTitle,
-        decision: newDecisionAction,
-        consequence: newDecisionConsequence || 'As repercussões ainda se manifestam pelo reino.',
-        createdAt: new Date().toISOString()
-      };
-      setDecisions(prev => [mockDec, ...prev]);
-      setIsNewDecisionModal(false);
-      setNewDecisionTitle('');
-      setNewDecisionAction('');
-      setNewDecisionConsequence('');
+    } catch (err: unknown) {
+      alert('Erro ao registrar decisão do mundo: ' + (err instanceof Error ? err.message : 'Falha na comunicação com o servidor'));
     }
   };
 
@@ -873,8 +849,8 @@ export function App() {
     try {
       await api.deleteDecision(selectedCampaign.id, decisionId);
       setDecisions(prev => prev.filter(d => d.id !== decisionId));
-    } catch {
-      setDecisions(prev => prev.filter(d => d.id !== decisionId));
+    } catch (err: unknown) {
+      alert('Erro ao deletar decisão: ' + (err instanceof Error ? err.message : 'Falha na comunicação com o servidor'));
     }
   };
 
@@ -892,17 +868,8 @@ export function App() {
       });
       setDirectives(prev => [created, ...prev]);
       setNewDirectiveText('');
-    } catch {
-      const mockDir: StoryDirective = {
-        id: 'dir-' + Date.now(),
-        campaignId: selectedCampaign.id,
-        directive: newDirectiveText.trim(),
-        type: newDirectiveType,
-        isActive: true,
-        createdAt: new Date().toISOString()
-      };
-      setDirectives(prev => [mockDir, ...prev]);
-      setNewDirectiveText('');
+    } catch (err: unknown) {
+      alert('Erro ao criar diretriz de história: ' + (err instanceof Error ? err.message : 'Falha na comunicação com o servidor'));
     } finally {
       setIsSubmittingDirective(false);
     }

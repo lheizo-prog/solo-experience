@@ -43,8 +43,37 @@ public class WorldDecisionService {
     }
 
     @Transactional
-    public void deleteDecision(UUID decisionId) {
-        worldDecisionRepository.deleteById(decisionId);
+    public WorldDecisionDto.Response updateDecision(UUID campaignId, UUID decisionId, WorldDecisionDto.UpdateRequest request) {
+        WorldDecision decision = worldDecisionRepository.findById(decisionId)
+                .orElseThrow(() -> new IllegalArgumentException("Decisão não encontrada: " + decisionId));
+
+        if (!decision.getCampaign().getId().equals(campaignId)) {
+            throw new IllegalArgumentException("A decisão não pertence à campanha especificada: " + campaignId);
+        }
+
+        if (request.getTitle() != null && !request.getTitle().isBlank()) {
+            decision.setTitle(request.getTitle());
+        }
+        if (request.getDecision() != null && !request.getDecision().isBlank()) {
+            decision.setDecision(request.getDecision());
+        }
+        if (request.getConsequence() != null) {
+            decision.setConsequence(request.getConsequence());
+        }
+
+        return toDto(worldDecisionRepository.save(decision));
+    }
+
+    @Transactional
+    public void deleteDecision(UUID campaignId, UUID decisionId) {
+        WorldDecision decision = worldDecisionRepository.findById(decisionId)
+                .orElseThrow(() -> new IllegalArgumentException("Decisão não encontrada: " + decisionId));
+
+        if (!decision.getCampaign().getId().equals(campaignId)) {
+            throw new IllegalArgumentException("A decisão não pertence à campanha especificada: " + campaignId);
+        }
+
+        worldDecisionRepository.delete(decision);
     }
 
     private WorldDecisionDto.Response toDto(WorldDecision entity) {

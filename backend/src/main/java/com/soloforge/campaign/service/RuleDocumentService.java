@@ -77,9 +77,9 @@ public class RuleDocumentService {
                 + (systemName != null && !systemName.isBlank() ? "Nome sugerido: " + systemName + "\n\n" : "")
                 + rawRulesText;
 
-        String response = geminiService.generateStoryResponse(
+        String response = geminiService.generateContent(
                 systemPrompt,
-                List.of(Map.of("role", "PLAYER", "text", userPrompt))
+                userPrompt
         );
 
         CampaignDto.UpdateSystemRequest dto = new CampaignDto.UpdateSystemRequest();

@@ -20,7 +20,6 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/campaigns")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class CampaignController {
 
     private final CampaignService campaignService;
