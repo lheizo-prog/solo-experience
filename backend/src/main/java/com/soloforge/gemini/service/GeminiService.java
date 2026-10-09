@@ -38,12 +38,20 @@ public class GeminiService {
 
     private final RestClient restClient;
     private final ObjectMapper objectMapper;
+    private final MasterComplianceInspector masterComplianceInspector;
     private final List<String> discoveredModelsCache = new ArrayList<>();
     private long lastDiscoveryTime = 0;
 
     public GeminiService() {
         this.restClient = RestClient.builder().build();
         this.objectMapper = new ObjectMapper();
+        this.masterComplianceInspector = new MasterComplianceInspector();
+    }
+
+    public GeminiService(MasterComplianceInspector inspector) {
+        this.restClient = RestClient.builder().build();
+        this.objectMapper = new ObjectMapper();
+        this.masterComplianceInspector = inspector != null ? inspector : new MasterComplianceInspector();
     }
 
     /**
@@ -195,18 +203,29 @@ public class GeminiService {
                         String rawText = parts.get(0).path("text").asText();
                         log.debug("Gemini Raw Response: {}", rawText);
 
-                        // Avaliação Precisa: Verificar se a resposta é puramente pensamento/brainstorm sem prosa efetiva
-                        if (isPureThoughtLeak(rawText)) {
-                            log.warn("Detectado vazamento de pensamento puro sem narrativa para o jogador no modelo [{}]. Solicitando reformulação imediata...", modelToTry);
-                            String reformulated = requestReformulation(systemInstruction, rawText, modelToTry);
-                            if (reformulated != null && !reformulated.isBlank() && !isPureThoughtLeak(reformulated)) {
-                                String cleanReformulated = extractPlayerNarrative(reformulated);
-                                if (isValidPlayerNarrative(cleanReformulated)) {
-                                    log.info("Gemini reformulou com sucesso em prosa oficial para o jogador!");
-                                    return cleanReformulated;
+                        // Inspeção Híbrida de Conformidade de Regras (Fast-Gate Java)
+                        MasterComplianceInspector.ComplianceResult compliance = masterComplianceInspector.inspect(rawText, chatHistory);
+                        if (!compliance.isCompliant()) {
+                            log.warn("Detectadas não-conformidades nas regras do Mestre no modelo [{}]: {}. Solicitando remediação imediata...",
+                                    modelToTry, compliance.getViolations().stream().map(v -> v.getType().name()).toList());
+
+                            String remediationPrompt = compliance.buildRemediationPrompt(rawText);
+                            String remediated = requestRemediation(systemInstruction, remediationPrompt, modelToTry);
+                            if (remediated != null && !remediated.isBlank()) {
+                                MasterComplianceInspector.ComplianceResult postCheck = masterComplianceInspector.inspect(remediated, chatHistory);
+                                if (postCheck.isCompliant()) {
+                                    log.info("Gemini remediou com sucesso todas as regras do Mestre!");
+                                    return extractPlayerNarrative(remediated);
+                                } else {
+                                    log.warn("Remediação ainda contém resíduos: {}. Tentando extração limpa.",
+                                            postCheck.getViolations().stream().map(v -> v.getType().name()).toList());
+                                    String clean = extractPlayerNarrative(remediated);
+                                    if (isValidPlayerNarrative(clean)) {
+                                        return clean;
+                                    }
                                 }
                             }
-                            log.warn("Tentativa de reformulação falhou ou repetiu pensamento. Extraindo melhor esforço ou tentando próximo modelo...");
+                            log.warn("Tentativa de remediação falhou. Tentando extração de melhor esforço da resposta original...");
                         }
 
                         String extracted = extractPlayerNarrative(rawText);
@@ -603,6 +622,57 @@ public class GeminiService {
 
         // Considera Pensamento Puro apenas se houver pelo menos 2 indicadores técnicos claros e predominância de notas
         return technicalIndicators >= 2;
+    }
+
+    /**
+     * Solicita remediação direcionada ao Gemini com prompt customizado gerado pelo MasterComplianceInspector.
+     */
+    private String requestRemediation(String systemInstruction, String remediationPrompt, String modelToUse) {
+        if (apiKey == null || apiKey.isBlank() || remediationPrompt == null || remediationPrompt.isBlank()) {
+            return null;
+        }
+
+        try {
+            String endpoint = String.format("%s/%s:generateContent?key=%s", baseUrl, modelToUse, apiKey);
+
+            Map<String, Object> requestBody = new HashMap<>();
+            if (systemInstruction != null && !systemInstruction.isBlank()) {
+                requestBody.put("system_instruction", Map.of(
+                        "parts", List.of(Map.of("text", systemInstruction))
+                ));
+            }
+            requestBody.put("contents", List.of(Map.of(
+                    "role", "user",
+                    "parts", List.of(Map.of("text", remediationPrompt))
+            )));
+
+            Map<String, Object> genConfig = new HashMap<>();
+            genConfig.put("temperature", 0.7);
+            genConfig.put("maxOutputTokens", 65536);
+            if (modelToUse.contains("2.5") || modelToUse.contains("2.0")) {
+                genConfig.put("thinkingConfig", Map.of("thinkingBudget", 0));
+            }
+            requestBody.put("generationConfig", genConfig);
+
+            String responseJson = restClient.post()
+                    .uri(endpoint)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(requestBody)
+                    .retrieve()
+                    .body(String.class);
+
+            JsonNode root = objectMapper.readTree(responseJson);
+            JsonNode candidate = root.path("candidates").get(0);
+            if (candidate != null) {
+                JsonNode parts = candidate.path("content").path("parts");
+                if (parts.isArray() && !parts.isEmpty()) {
+                    return parts.get(0).path("text").asText();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Falha na chamada de remediação com modelo [{}]: {}", modelToUse, e.getMessage());
+        }
+        return null;
     }
 
     /**
