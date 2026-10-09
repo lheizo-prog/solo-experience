@@ -46,6 +46,16 @@ public class Npc {
     @Column(columnDefinition = "TEXT")
     private String attributes;
 
+    @Column(columnDefinition = "TEXT")
+    private String skills; // Habilidades & Técnicas de combate
+
+    @Column(name = "combat_strategy", columnDefinition = "TEXT")
+    private String combatStrategy; // Estratégia de Combate, Fases e Fraquezas
+
+    @Column(length = 30)
+    @Builder.Default
+    private String tier = "COMMON"; // COMMON, MINI_BOSS, BOSS
+
     @Column(name = "is_crystallized", nullable = false)
     @Builder.Default
     private Boolean isCrystallized = false; // false = passageiro, true = persistido no contexto central

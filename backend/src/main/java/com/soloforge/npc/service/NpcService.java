@@ -41,15 +41,22 @@ public class NpcService {
         Campaign campaign = campaignRepository.findById(campaignId)
                 .orElseThrow(() -> new IllegalArgumentException("Campanha não encontrada: " + campaignId));
 
+        String tier = request.getTier() != null && !request.getTier().isBlank()
+                ? request.getTier().toUpperCase()
+                : "COMMON";
+
         Npc npc = Npc.builder()
                 .campaign(campaign)
                 .name(request.getName())
                 .role(request.getRole() != null ? request.getRole() : "Habitante")
+                .tier(tier)
                 .description(request.getDescription())
                 .personality(request.getPersonality())
                 .memory(request.getMemory())
                 .imageUrl(request.getImageUrl())
                 .attributes(request.getAttributes())
+                .skills(request.getSkills())
+                .combatStrategy(request.getCombatStrategy())
                 .isCrystallized(request.getIsCrystallized() != null ? request.getIsCrystallized() : true)
                 .build();
 
@@ -57,7 +64,7 @@ public class NpcService {
     }
 
     /**
-     * Forja um NPC ou Boss sob medida com base nas regras e mecânicas da campanha
+     * Forja um NPC, Mini Boss ou Boss sob medida com base nas regras, tier e mecânicas da campanha
      */
     @Transactional
     public NpcDto.Response generateNpcWithAi(UUID campaignId, NpcDto.GenerateAiRequest req) {
@@ -69,13 +76,55 @@ public class NpcService {
         String coreMechanics = system != null && system.getCoreMechanics() != null ? system.getCoreMechanics() : "D20 padrão";
         String statsRules = system != null && system.getStatsAndAttributes() != null ? system.getStatsAndAttributes() : "Atributos D20";
 
-        String targetType = req.getType() != null && !req.getType().isBlank() ? req.getType().toUpperCase() : "NPC";
+        String requestedTier = req.getTier();
+        if (requestedTier == null || requestedTier.isBlank()) {
+            if ("BOSS".equalsIgnoreCase(req.getType())) {
+                requestedTier = "BOSS";
+            } else if ("RIVAL".equalsIgnoreCase(req.getType())) {
+                requestedTier = "MINI_BOSS";
+            } else {
+                requestedTier = "COMMON";
+            }
+        } else {
+            requestedTier = requestedTier.toUpperCase();
+        }
+
         String challenge = req.getChallengeLevel() != null && !req.getChallengeLevel().isBlank() ? req.getChallengeLevel().toUpperCase() : "MÉDIO";
         String concept = req.getConcept() != null && !req.getConcept().isBlank() ? req.getConcept() : "Um encontro memorável e desafiador para o jogador";
 
+        String tierInstructions = switch (requestedTier) {
+            case "BOSS" -> """
+                CATEGORIA: GRANDE CHEFE / BOSS ÉPICO DE ATO
+                - "attributes": APENAS números e dados vitais essenciais do sistema (ex: FOR: 18 (+4) | DES: 14 (+2) | CON: 18 (+4) | PV: 180/180 | CA: 18 | Ki/Mana: 40). NUNCA coloque textos de golpes ou fases aqui.
+                - "skills": Técnicas, magias ou golpes devastadores com custo e efeito (Ex: Golpe Esmagador: 0 Ki (Dano FOR x 2) | Tempestade Arcana: 10 Mana (3d8 em área) | Contra-Golpe de Aço).
+                - "combatStrategy": Estrutura épica de combate contendo:
+                  * FASE 1 (100% a 50% PV): Postura inicial e padrão de ação.
+                  * FASE 2 (49% a 0% PV): Gatilho de fúria/transformação e bônus.
+                  * HABILIDADE ESPECIAL (Último suspiro, persistência ou reação destrutiva).
+                  * FRAQUEZA TÁTICA: Pelo menos uma fraqueza explícita para o jogador explorar narrativamente.
+                """;
+            case "MINI_BOSS" -> """
+                CATEGORIA: MINI BOSS / INIMIGO DE ELITE / RIVAL
+                - "attributes": Atributos reforçados cerca de +30% superiores a um humano comum, com PV expandido (Ex: FOR: 16 (+3) | DES: 14 (+2) | PV: 65/65 | CA: 16). APENAS números e dados vitais.
+                - "skills": 2 a 3 técnicas de assinatura perigosas com custos e efeitos claros.
+                - "combatStrategy": Padrão de combate tático, gatilho de reação/desespero quando estiver abaixo de 50% de PV, e uma FRAQUEZA TÁTICA CLARA que recompense a inteligência do jogador.
+                """;
+            default -> """
+                CATEGORIA: NPC COMUM / ALIADO / HABITANTE
+                - "attributes": Atributos numéricos equilibrados na mesma escala de um personagem jogador iniciante (Ex: FOR: 10 (+0) | DES: 12 (+1) | PV: 18/18 | CA: 12).
+                - "skills": 1 ataque básico ou 1 perícia de utilidade social/ofício (Ex: Adaga: 1d4+1 | Negociação +3).
+                - "combatStrategy": Comportamento simples em combate (Ex: Não é guerreiro; busca abrigo, negocia ou foge se ameaçado).
+                """;
+        };
+
         String prompt = String.format("""
             Você é um Game Master e Designer de Monstros/NPCs para RPGs de Mesa.
-            Crie um personagem (%s - Desafio: %s) totalmente coerente com as regras e atributos do sistema abaixo.
+            Crie um personagem totalmente coerente com as regras e atributos do sistema abaixo.
+            Tier do Personagem: %s
+            Desafio / Grau de Ameaça: %s
+
+            === DIRETRIZES DA CATEGORIA (%s) ===
+            %s
 
             === SISTEMA DE REGRAS DA CAMPANHA ===
             Nome: %s
@@ -85,28 +134,32 @@ public class NpcService {
             === CONCEITO DESEJADO ===
             %s
 
-            Responda OBRIGATORIAMENTE em JSON puro (sem markdown, sem explicações extras) no formato:
+            Responda OBRIGATORIAMENTE em JSON puro (sem markdown ao redor, sem explicações extras) no formato:
             {
               "name": "Nome do Personagem ou Monstro",
               "role": "Papel (Ex: Chefe de Ato, Aliado Fiel, Mercador Exótico, Assassino)",
-              "description": "Descrição física e lore do personagem",
-              "attributes": "Atributos e estatísticas formatados de forma limpa compatíveis com as regras (Ex: FOR: 18 | DES: 14 | CON: 16 | PV: 60/60 | CA: 17 | Habilidade: Rajada Sombria)",
+              "attributes": "Apenas números e estatísticas vitais formatados (Ex: FOR: 16 | DES: 14 | PV: 40 | CA: 15)",
+              "skills": "Técnicas, magias ou golpes com custo e efeito",
+              "combatStrategy": "Padrão de combate, fases e fraquezas",
+              "description": "Descrição física e aparência do personagem",
               "personality": "Traços de personalidade, motivações e maneirismos",
               "memory": "Como ele interage ou reage inicialmente ao jogador no mundo"
             }
-            """, targetType, challenge, systemName, coreMechanics, statsRules, concept);
+            """, requestedTier, challenge, requestedTier, tierInstructions, systemName, coreMechanics, statsRules, concept);
 
         String generatedJson = geminiService.generateContent(
-                "Você é um gerador de NPCs e Bosses para RPGs. Responda apenas com o JSON pedido.",
+                "Você é um gerador de NPCs, Mini Bosses e Chefes Épicos para RPGs. Responda apenas com o JSON pedido.",
                 prompt
         );
 
         String cleanJson = JsonExtractor.extractJsonObject(generatedJson);
 
-        String name = "Novo " + targetType;
-        String role = targetType.equalsIgnoreCase("BOSS") ? "Chefe de Ameaça" : "Habitante";
+        String name = "Novo " + requestedTier;
+        String role = requestedTier.equalsIgnoreCase("BOSS") ? "Chefe de Ameaça" : requestedTier.equalsIgnoreCase("MINI_BOSS") ? "Inimigo de Elite" : "Habitante";
         String description = "Personagem gerado pelo sistema.";
         String attributes = "Atributos padrão";
+        String skills = "";
+        String combatStrategy = "";
         String personality = "Misterioso e focado em seus objetivos.";
         String memory = "Conheceu o herói nas imediações da jornada.";
 
@@ -117,6 +170,8 @@ public class NpcService {
                 if (root.has("role")) role = root.get("role").asText();
                 if (root.has("description")) description = root.get("description").asText();
                 if (root.has("attributes")) attributes = root.get("attributes").asText();
+                if (root.has("skills")) skills = root.get("skills").asText();
+                if (root.has("combatStrategy")) combatStrategy = root.get("combatStrategy").asText();
                 if (root.has("personality")) personality = root.get("personality").asText();
                 if (root.has("memory")) memory = root.get("memory").asText();
             }
@@ -131,8 +186,11 @@ public class NpcService {
                 .campaign(campaign)
                 .name(name)
                 .role(role)
+                .tier(requestedTier)
                 .description(description)
                 .attributes(attributes)
+                .skills(skills)
+                .combatStrategy(combatStrategy)
                 .imageUrl(req.getImageUrl())
                 .personality(personality)
                 .memory(memory)
@@ -243,6 +301,9 @@ public class NpcService {
         if (request.getMemory() != null) npc.setMemory(request.getMemory());
         if (request.getImageUrl() != null) npc.setImageUrl(request.getImageUrl());
         if (request.getAttributes() != null) npc.setAttributes(request.getAttributes());
+        if (request.getSkills() != null) npc.setSkills(request.getSkills());
+        if (request.getCombatStrategy() != null) npc.setCombatStrategy(request.getCombatStrategy());
+        if (request.getTier() != null && !request.getTier().isBlank()) npc.setTier(request.getTier().toUpperCase());
         if (request.getIsCrystallized() != null) npc.setIsCrystallized(request.getIsCrystallized());
 
         return toDto(npcRepository.save(npc));
@@ -279,11 +340,14 @@ public class NpcService {
                 .campaignId(entity.getCampaign().getId())
                 .name(entity.getName())
                 .role(entity.getRole())
+                .tier(entity.getTier())
                 .description(entity.getDescription())
                 .personality(entity.getPersonality())
                 .memory(entity.getMemory())
                 .imageUrl(entity.getImageUrl())
                 .attributes(entity.getAttributes())
+                .skills(entity.getSkills())
+                .combatStrategy(entity.getCombatStrategy())
                 .isCrystallized(entity.getIsCrystallized())
                 .createdAt(entity.getCreatedAt())
                 .build();

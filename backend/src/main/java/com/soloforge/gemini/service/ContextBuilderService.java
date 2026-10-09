@@ -87,9 +87,16 @@ public class ContextBuilderService {
         if (!crystallizedNpcs.isEmpty()) {
             sb.append("=== NPCS CONHECIDOS & CRISTALIZADOS (FICHAS E ATRIBUTOS) ===\n");
             for (Npc npc : crystallizedNpcs) {
-                sb.append("- ").append(npc.getName()).append(" (").append(npc.getRole() != null ? npc.getRole() : "Personagem").append("):\n");
+                String tierTag = npc.getTier() != null && !npc.getTier().equalsIgnoreCase("COMMON") ? "[" + npc.getTier() + "] " : "";
+                sb.append("- ").append(tierTag).append(npc.getName()).append(" (").append(npc.getRole() != null ? npc.getRole() : "Personagem").append("):\n");
                 if (npc.getAttributes() != null && !npc.getAttributes().isBlank()) {
                     sb.append("  * Atributos & Estatísticas: ").append(npc.getAttributes()).append("\n");
+                }
+                if (npc.getSkills() != null && !npc.getSkills().isBlank()) {
+                    sb.append("  * Habilidades & Técnicas: ").append(npc.getSkills()).append("\n");
+                }
+                if (npc.getCombatStrategy() != null && !npc.getCombatStrategy().isBlank()) {
+                    sb.append("  * Estratégia de Combate / Fases / Fraquezas: ").append(npc.getCombatStrategy()).append("\n");
                 }
                 if (npc.getPersonality() != null && !npc.getPersonality().isBlank()) {
                     sb.append("  * Personalidade: ").append(npc.getPersonality()).append("\n");

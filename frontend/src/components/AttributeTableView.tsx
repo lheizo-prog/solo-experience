@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Sword, Copy, Check, Shield, Heart } from 'lucide-react';
+import { Sword, Copy, Check, Shield, Heart, Zap, Target, AlertTriangle, Crown, Swords, User } from 'lucide-react';
+import type { NpcTier } from '../types/soloforge';
 
 export interface ParsedAttribute {
   name: string;
@@ -46,7 +47,8 @@ export function parseAttributeData(raw?: string | null): AttributeParseResult {
         const key = segment.substring(0, colonIdx).trim();
         const val = segment.substring(colonIdx + 1).trim();
 
-        if (key && val) {
+        // Evita tratar títulos longos de parágrafos como nomes de atributos
+        if (key && val && key.length <= 25) {
           const upperKey = key.toUpperCase();
           const isVital = upperKey === 'PV' || upperKey === 'HP' || upperKey.includes('VIDA');
           const isDefense = upperKey === 'CA' || upperKey === 'DEF' || upperKey.includes('ARMADURA') || upperKey.includes('DEFESA');
@@ -200,11 +202,11 @@ export const AttributeTableView: React.FC<AttributeTableViewProps> = ({
         </div>
       )}
 
-      {/* Linhas Extras / Habilidades de Combate / Ataques */}
+      {/* Linhas Extras se houver */}
       {extraNotes.length > 0 && (
         <div className="pt-1.5 border-t border-slate-800/80 space-y-1">
           <span className="text-[9px] uppercase tracking-wider text-slate-400 block font-semibold">
-            Habilidades & Ataques:
+            Notas de Combate:
           </span>
           <div className="flex flex-wrap gap-1">
             {extraNotes.map((note, idx) => (
@@ -216,6 +218,177 @@ export const AttributeTableView: React.FC<AttributeTableViewProps> = ({
               </span>
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Badge Temático para o Tier do NPC
+ */
+export const NpcTierBadge: React.FC<{ tier?: NpcTier | string }> = ({ tier }) => {
+  const normalized = (tier || 'COMMON').toUpperCase();
+
+  if (normalized === 'BOSS') {
+    return (
+      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-950 to-amber-950 text-rose-300 border border-rose-500/50 flex items-center gap-1 shadow-sm shadow-rose-950/40">
+        <Crown className="w-3 h-3 text-amber-400" />
+        <span>Grande Chefe</span>
+      </span>
+    );
+  }
+
+  if (normalized === 'MINI_BOSS') {
+    return (
+      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-950/80 text-indigo-300 border border-indigo-500/40 flex items-center gap-1">
+        <Swords className="w-3 h-3 text-indigo-400" />
+        <span>Mini Boss</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="text-[10px] font-medium px-2 py-0.2 rounded-full bg-slate-900 text-slate-400 border border-slate-800 flex items-center gap-1">
+      <User className="w-2.5 h-2.5 text-slate-400" />
+      <span>Comum</span>
+    </span>
+  );
+};
+
+/**
+ * Visualização Estruturada de Habilidades & Técnicas do NPC
+ */
+export const NpcSkillsView: React.FC<{ rawSkills?: string | null }> = ({ rawSkills }) => {
+  if (!rawSkills || !rawSkills.trim()) return null;
+
+  // Quebra por linhas ou pipes '|'
+  const items = rawSkills.includes('|')
+    ? rawSkills.split('|').map(s => s.trim()).filter(Boolean)
+    : rawSkills.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+
+  return (
+    <div className="bg-slate-950/60 border border-indigo-950/60 rounded-lg p-2.5 space-y-1.5">
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-400">
+        <Zap className="w-3.5 h-3.5 text-indigo-400" />
+        <span>Habilidades & Técnicas</span>
+      </div>
+
+      <div className="space-y-1.5">
+        {items.map((item, idx) => {
+          const colonIdx = item.indexOf(':');
+          const hasColon = colonIdx > 0;
+          const title = hasColon ? item.substring(0, colonIdx).trim() : '';
+          const desc = hasColon ? item.substring(colonIdx + 1).trim() : item;
+
+          return (
+            <div key={idx} className="bg-slate-900/80 border border-slate-800/80 rounded px-2.5 py-1.5 text-xs">
+              {hasColon ? (
+                <div>
+                  <span className="font-semibold text-amber-300 text-[11px] block">{title}</span>
+                  <p className="text-slate-300 text-[11px] leading-relaxed mt-0.5">{desc}</p>
+                </div>
+              ) : (
+                <p className="text-slate-300 text-[11px] leading-relaxed">{desc}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Visualização Estruturada de Estratégia de Combate, Fases e Fraquezas
+ */
+export const NpcStrategyView: React.FC<{ rawStrategy?: string | null; tier?: NpcTier | string }> = ({
+  rawStrategy,
+  tier
+}) => {
+  if (!rawStrategy || !rawStrategy.trim()) return null;
+
+  const isBossOrMini = (tier || '').toUpperCase().includes('BOSS');
+
+  // Quebra por linhas ou pipes
+  const segments = rawStrategy.includes('|')
+    ? rawStrategy.split('|').map(s => s.trim()).filter(Boolean)
+    : rawStrategy.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+
+  // Isola fraquezas e fases
+  const weaknesses: string[] = [];
+  const phasesOrTactics: string[] = [];
+
+  for (const seg of segments) {
+    if (seg.toLowerCase().includes('fraqueza') || seg.toLowerCase().includes('vulnerab')) {
+      weaknesses.push(seg);
+    } else {
+      phasesOrTactics.push(seg);
+    }
+  }
+
+  return (
+    <div className={`rounded-lg p-2.5 space-y-2 border ${
+      isBossOrMini 
+        ? 'bg-slate-950/80 border-amber-950/80 shadow-sm' 
+        : 'bg-slate-950/60 border-slate-800/80'
+    }`}>
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-amber-500">
+        <Target className="w-3.5 h-3.5 text-amber-400" />
+        <span>Estratégia & Padrão de Combate</span>
+      </div>
+
+      {/* Fases / Padrões de Ação */}
+      <div className="space-y-1.5">
+        {phasesOrTactics.map((tactic, idx) => {
+          const colonIdx = tactic.indexOf(':');
+          const hasColon = colonIdx > 0;
+          const title = hasColon ? tactic.substring(0, colonIdx).trim() : '';
+          const desc = hasColon ? tactic.substring(colonIdx + 1).trim() : tactic;
+
+          const isPhase = title.toLowerCase().includes('fase') || tactic.toLowerCase().includes('fase');
+
+          return (
+            <div
+              key={idx}
+              className={`rounded px-2.5 py-1.5 text-xs border ${
+                isPhase
+                  ? 'bg-amber-950/20 border-amber-900/40 text-amber-200'
+                  : 'bg-slate-900/80 border-slate-800/80 text-slate-300'
+              }`}
+            >
+              {hasColon ? (
+                <div>
+                  <span className={`font-bold text-[11px] block ${isPhase ? 'text-amber-400' : 'text-slate-200'}`}>
+                    {title}
+                  </span>
+                  <p className="text-[11px] leading-relaxed mt-0.5 text-slate-300">{desc}</p>
+                </div>
+              ) : (
+                <p className="text-[11px] leading-relaxed">{desc}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Fraquezas em Destaque */}
+      {weaknesses.length > 0 && (
+        <div className="space-y-1 pt-1 border-t border-slate-800/80">
+          {weaknesses.map((w, idx) => (
+            <div
+              key={idx}
+              className="bg-rose-950/30 border border-rose-500/40 rounded p-2 text-xs flex items-start gap-2 text-rose-200"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
+              <div className="text-[11px] leading-relaxed">
+                <strong className="text-rose-300 font-semibold block">Vulnerabilidade / Fraqueza Tática:</strong>
+                <p className="text-rose-200/90 mt-0.5">
+                  {w.includes(':') ? w.split(':')[1].trim() : w}
+                </p>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

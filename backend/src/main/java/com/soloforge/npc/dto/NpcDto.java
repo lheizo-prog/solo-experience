@@ -19,6 +19,9 @@ public class NpcDto {
         private String memory;
         private String imageUrl;
         private String attributes;
+        private String skills;
+        private String combatStrategy;
+        private String tier;
         private Boolean isCrystallized;
     }
 
@@ -26,6 +29,7 @@ public class NpcDto {
     public static class GenerateAiRequest {
         private String concept; // ex: "Lorde vampiro que governa a fortaleza nas sombras"
         private String type;    // "BOSS", "MINION", "ALLY", "RIVAL", "MERCHANT"
+        private String tier;    // "COMMON", "MINI_BOSS", "BOSS"
         private String challengeLevel; // "EASY", "MEDIUM", "HARD", "DEADLY", "LEGENDARY"
         private String imageUrl;
     }
@@ -39,6 +43,9 @@ public class NpcDto {
         private String memory;
         private String imageUrl;
         private String attributes;
+        private String skills;
+        private String combatStrategy;
+        private String tier;
         private Boolean isCrystallized;
     }
 
@@ -60,6 +67,9 @@ public class NpcDto {
         private String memory;
         private String imageUrl;
         private String attributes;
+        private String skills;
+        private String combatStrategy;
+        private String tier;
         private Boolean isCrystallized;
         private LocalDateTime createdAt;
     }

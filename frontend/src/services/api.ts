@@ -254,6 +254,9 @@ export const api = {
     memory?: string;
     imageUrl?: string;
     attributes?: string;
+    skills?: string;
+    combatStrategy?: string;
+    tier?: string;
     isCrystallized?: boolean;
   }): Promise<Npc> {
     const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/npcs`, {
@@ -273,6 +276,9 @@ export const api = {
     memory?: string;
     imageUrl?: string;
     attributes?: string;
+    skills?: string;
+    combatStrategy?: string;
+    tier?: string;
     isCrystallized?: boolean;
   }): Promise<Npc> {
     const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/npcs/${npcId}`, {
@@ -297,6 +303,7 @@ export const api = {
   async generateNpcWithAi(campaignId: string, data: {
     concept?: string;
     type?: string;
+    tier?: string;
     challengeLevel?: string;
     imageUrl?: string;
   }): Promise<Npc> {

@@ -46,15 +46,17 @@ import {
   Check,
   Lightbulb,
   MoreVertical,
-  TrendingUp
+  TrendingUp,
+  Swords,
+  Crown
 } from 'lucide-react';
 
 import { LoginScreen } from './components/LoginScreen';
-import { AttributeTableView } from './components/AttributeTableView';
+import { AttributeTableView, NpcSkillsView, NpcStrategyView, NpcTierBadge } from './components/AttributeTableView';
 import { MiniCharacterBanner } from './components/MiniCharacterBanner';
 import { api } from './services/api';
 
-import type { Campaign, Session, Message, StoryArc, WorldDecision, Npc, StoryDirective, ProgressionEvaluationResponse } from './types/soloforge';
+import type { Campaign, Session, Message, StoryArc, WorldDecision, Npc, NpcTier, StoryDirective, ProgressionEvaluationResponse } from './types/soloforge';
 
 interface PendingCheck {
   dice: string;      // ex: "d20"
@@ -220,19 +222,25 @@ export function App() {
   const [isNewNpcModal, setIsNewNpcModal] = useState(false);
   const [newNpcName, setNewNpcName] = useState('');
   const [newNpcRole, setNewNpcRole] = useState('');
+  const [newNpcTier, setNewNpcTier] = useState<NpcTier>('COMMON');
   const [newNpcPersonality, setNewNpcPersonality] = useState('');
   const [newNpcMemory, setNewNpcMemory] = useState('');
   const [newNpcImageUrl, setNewNpcImageUrl] = useState('');
   const [newNpcAttributes, setNewNpcAttributes] = useState('');
+  const [newNpcSkills, setNewNpcSkills] = useState('');
+  const [newNpcCombatStrategy, setNewNpcCombatStrategy] = useState('');
 
   // Edição Manual de NPC
   const [editingNpc, setEditingNpc] = useState<Npc | null>(null);
   const [editNpcName, setEditNpcName] = useState('');
   const [editNpcRole, setEditNpcRole] = useState('');
+  const [editNpcTier, setEditNpcTier] = useState<NpcTier>('COMMON');
   const [editNpcPersonality, setEditNpcPersonality] = useState('');
   const [editNpcMemory, setEditNpcMemory] = useState('');
   const [editNpcImageUrl, setEditNpcImageUrl] = useState('');
   const [editNpcAttributes, setEditNpcAttributes] = useState('');
+  const [editNpcSkills, setEditNpcSkills] = useState('');
+  const [editNpcCombatStrategy, setEditNpcCombatStrategy] = useState('');
 
   // Evolução de NPC por Evento com IA
   const [evolvingNpc, setEvolvingNpc] = useState<Npc | null>(null);
@@ -254,6 +262,7 @@ export function App() {
   const [isAiNpcModal, setIsAiNpcModal] = useState(false);
   const [aiNpcConcept, setAiNpcConcept] = useState('');
   const [aiNpcType, setAiNpcType] = useState<'BOSS' | 'MINION' | 'ALLY' | 'RIVAL' | 'MERCHANT'>('BOSS');
+  const [aiNpcTier, setAiNpcTier] = useState<NpcTier>('MINI_BOSS');
   const [aiNpcChallenge, setAiNpcChallenge] = useState<'FÁCIL' | 'MÉDIO' | 'DIFÍCIL' | 'MORTAL' | 'LENDÁRIO'>('DIFÍCIL');
   const [aiNpcImageUrl, setAiNpcImageUrl] = useState('');
   const [isGeneratingAiNpc, setIsGeneratingAiNpc] = useState(false);
@@ -963,30 +972,39 @@ export function App() {
       const created = await api.createNpc(selectedCampaign.id, {
         name: newNpcName,
         role: newNpcRole,
+        tier: newNpcTier,
         personality: newNpcPersonality,
         memory: newNpcMemory,
         imageUrl: newNpcImageUrl.trim() || undefined,
         attributes: newNpcAttributes.trim() || undefined,
+        skills: newNpcSkills.trim() || undefined,
+        combatStrategy: newNpcCombatStrategy.trim() || undefined,
         isCrystallized: true
       });
       setNpcs(prev => [created, ...prev]);
       setIsNewNpcModal(false);
       setNewNpcName('');
       setNewNpcRole('');
+      setNewNpcTier('COMMON');
       setNewNpcPersonality('');
       setNewNpcMemory('');
       setNewNpcImageUrl('');
       setNewNpcAttributes('');
+      setNewNpcSkills('');
+      setNewNpcCombatStrategy('');
     } catch {
       const mockNpc: Npc = {
         id: 'npc-' + Date.now(),
         campaignId: selectedCampaign.id,
         name: newNpcName,
         role: newNpcRole || 'Habitante',
+        tier: newNpcTier,
         personality: newNpcPersonality,
         memory: newNpcMemory,
         imageUrl: newNpcImageUrl.trim() || undefined,
         attributes: newNpcAttributes.trim() || undefined,
+        skills: newNpcSkills.trim() || undefined,
+        combatStrategy: newNpcCombatStrategy.trim() || undefined,
         isCrystallized: true,
         createdAt: new Date().toISOString()
       };
@@ -994,10 +1012,13 @@ export function App() {
       setIsNewNpcModal(false);
       setNewNpcName('');
       setNewNpcRole('');
+      setNewNpcTier('COMMON');
       setNewNpcPersonality('');
       setNewNpcMemory('');
       setNewNpcImageUrl('');
       setNewNpcAttributes('');
+      setNewNpcSkills('');
+      setNewNpcCombatStrategy('');
     }
   };
 
@@ -1010,6 +1031,7 @@ export function App() {
       const generated = await api.generateNpcWithAi(selectedCampaign.id, {
         concept: aiNpcConcept.trim() || undefined,
         type: aiNpcType,
+        tier: aiNpcTier,
         challengeLevel: aiNpcChallenge,
         imageUrl: aiNpcImageUrl.trim() || undefined
       });
@@ -1028,10 +1050,13 @@ export function App() {
     setEditingNpc(npc);
     setEditNpcName(npc.name);
     setEditNpcRole(npc.role || '');
+    setEditNpcTier(npc.tier || 'COMMON');
     setEditNpcPersonality(npc.personality || '');
     setEditNpcMemory(npc.memory || '');
     setEditNpcImageUrl(npc.imageUrl || '');
     setEditNpcAttributes(npc.attributes || '');
+    setEditNpcSkills(npc.skills || '');
+    setEditNpcCombatStrategy(npc.combatStrategy || '');
   };
 
   const handleSaveEditNpc = async (e: React.FormEvent) => {
@@ -1042,10 +1067,13 @@ export function App() {
       const updated = await api.updateNpc(selectedCampaign.id, editingNpc.id, {
         name: editNpcName,
         role: editNpcRole,
+        tier: editNpcTier,
         personality: editNpcPersonality,
         memory: editNpcMemory,
         imageUrl: editNpcImageUrl.trim() || undefined,
-        attributes: editNpcAttributes.trim() || undefined
+        attributes: editNpcAttributes.trim() || undefined,
+        skills: editNpcSkills.trim() || undefined,
+        combatStrategy: editNpcCombatStrategy.trim() || undefined
       });
       setNpcs(prev => prev.map(n => n.id === editingNpc.id ? updated : n));
       setEditingNpc(null);
@@ -1055,10 +1083,13 @@ export function App() {
         ...n,
         name: editNpcName,
         role: editNpcRole,
+        tier: editNpcTier,
         personality: editNpcPersonality,
         memory: editNpcMemory,
         imageUrl: editNpcImageUrl,
-        attributes: editNpcAttributes
+        attributes: editNpcAttributes,
+        skills: editNpcSkills,
+        combatStrategy: editNpcCombatStrategy
       } : n));
       setEditingNpc(null);
     }
@@ -2847,6 +2878,7 @@ export function App() {
                                   <span className="font-semibold text-slate-200 text-xs">
                                     {npc.name}
                                   </span>
+                                  <NpcTierBadge tier={npc.tier} />
                                   <span className="text-[10px] text-amber-400 px-1.5 py-0.2 rounded bg-amber-950/60 border border-amber-900/40">
                                     {npc.role || 'Personagem'}
                                   </span>
@@ -2911,6 +2943,16 @@ export function App() {
                               copiedId={copiedId}
                               compact={true}
                             />
+                          )}
+
+                          {/* REQUISITO: Habilidades & Técnicas */}
+                          {npc.skills && (
+                            <NpcSkillsView rawSkills={npc.skills} />
+                          )}
+
+                          {/* REQUISITO: Estratégia de Combate / Padrão de Combate / Fases / Fraquezas */}
+                          {npc.combatStrategy && (
+                            <NpcStrategyView rawStrategy={npc.combatStrategy} tier={npc.tier} />
                           )}
 
                           {/* Toggle de Detalhes da História (Descrição, Personalidade, Memória) */}
@@ -3422,6 +3464,49 @@ export function App() {
                   />
                 </div>
 
+                {/* Seletor de Categoria / Tier */}
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Categoria de Ameaça</label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setNewNpcTier('COMMON')}
+                      className={`py-1.5 px-2 rounded text-xs font-semibold flex items-center justify-center gap-1 transition cursor-pointer ${
+                        newNpcTier === 'COMMON'
+                          ? 'bg-slate-700 text-white border border-slate-500'
+                          : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200'
+                      }`}
+                    >
+                      <User className="w-3 h-3" />
+                      <span>Comum</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewNpcTier('MINI_BOSS')}
+                      className={`py-1.5 px-2 rounded text-xs font-semibold flex items-center justify-center gap-1 transition cursor-pointer ${
+                        newNpcTier === 'MINI_BOSS'
+                          ? 'bg-indigo-950/90 text-indigo-200 border border-indigo-500/60'
+                          : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200'
+                      }`}
+                    >
+                      <Swords className="w-3 h-3 text-indigo-400" />
+                      <span>Mini Boss</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewNpcTier('BOSS')}
+                      className={`py-1.5 px-2 rounded text-xs font-semibold flex items-center justify-center gap-1 transition cursor-pointer ${
+                        newNpcTier === 'BOSS'
+                          ? 'bg-rose-950/90 text-rose-200 border border-rose-500/60'
+                          : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200'
+                      }`}
+                    >
+                      <Crown className="w-3 h-3 text-amber-400" />
+                      <span>Grande Chefe</span>
+                    </button>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-slate-300 font-medium mb-1">URL da Imagem / Avatar (Opcional)</label>
                   <div className="flex gap-2 items-center">
@@ -3444,14 +3529,39 @@ export function App() {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-medium mb-1">Atributos / Ficha de Combate</label>
+                  <label className="block text-slate-300 font-medium mb-1">Atributos & Estatísticas Numéricas</label>
                   <textarea
                     rows={2}
-                    placeholder="Ex: FOR: 16 | DES: 12 | CON: 14 | PV: 35/35 | CA: 15 | Martelo Pesado (1d8+3)"
+                    placeholder="Ex: FOR: 16 | DES: 12 | CON: 14 | PV: 35/35 | CA: 15"
                     value={newNpcAttributes}
                     onChange={e => setNewNpcAttributes(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500 font-mono text-[11px]"
                   />
+                  <p className="text-[10px] text-slate-500 mt-0.5">Apenas valores numéricos e vitais (renderizados em tabela).</p>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Habilidades & Técnicas de Combate</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Ex: Golpe Esmagador: 0 Ki (Dano FOR x 2) | Tempestade de Lâminas: 2 Ki (Ataque duplo)"
+                    value={newNpcSkills}
+                    onChange={e => setNewNpcSkills(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500 text-[11px]"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-0.5">Técnicas, magias ou golpes especiais com custo e efeito.</p>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Estratégia de Combate / Padrão de Ação</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Ex: Fase 1 (100-50% PV): Postura defensiva | Fase 2 (<50% PV): Fúria e contra-ataques | Fraqueza: VEL baixa, vulnerável à distância"
+                    value={newNpcCombatStrategy}
+                    onChange={e => setNewNpcCombatStrategy(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500 text-[11px]"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-0.5">Fases de combate, reações e fraquezas que o Mestre IA seguirá.</p>
                 </div>
 
                 <div>
@@ -3521,9 +3631,80 @@ export function App() {
                   A IA lerá o livro de regras da campanha (<strong className="text-amber-300">{selectedCampaign?.system?.name || 'Sistema Atual'}</strong>) e construirá estatísticas de combate, PV, atributos e fraquezas compatíveis.
                 </p>
 
+                {/* Seletor de Categoria Especializada (Comum, Mini Boss, Grande Boss) */}
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1.5 flex items-center gap-1.5">
+                    <span>Categoria do Encontro / Desafio</span>
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAiNpcTier('COMMON');
+                        setAiNpcType('ALLY');
+                      }}
+                      className={`p-2.5 rounded-lg border text-left transition cursor-pointer ${
+                        aiNpcTier === 'COMMON'
+                          ? 'bg-slate-800 border-slate-500 text-slate-100 shadow-md'
+                          : 'bg-slate-950/80 border-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold text-xs mb-0.5">
+                        <User className="w-3.5 h-3.5 text-slate-300" />
+                        <span>Comum</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 leading-tight">
+                        Aliados, mercadores ou oponentes no mesmo nível do herói.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAiNpcTier('MINI_BOSS');
+                        setAiNpcType('RIVAL');
+                      }}
+                      className={`p-2.5 rounded-lg border text-left transition cursor-pointer ${
+                        aiNpcTier === 'MINI_BOSS'
+                          ? 'bg-indigo-950/80 border-indigo-500 text-indigo-100 shadow-md shadow-indigo-950/40'
+                          : 'bg-slate-950/80 border-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold text-xs mb-0.5 text-indigo-300">
+                        <Swords className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>Mini Boss</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 leading-tight">
+                        Inimigo de elite (+30% stats), 2 técnicas e fraqueza tática clara.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAiNpcTier('BOSS');
+                        setAiNpcType('BOSS');
+                      }}
+                      className={`p-2.5 rounded-lg border text-left transition cursor-pointer ${
+                        aiNpcTier === 'BOSS'
+                          ? 'bg-rose-950/80 border-rose-500 text-rose-100 shadow-md shadow-rose-950/40'
+                          : 'bg-slate-950/80 border-slate-800 text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 font-bold text-xs mb-0.5 text-rose-300">
+                        <Crown className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Grande Boss</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 leading-tight">
+                        Chefe épico com 3 fases de combate, técnicas devastadoras e fraqueza.
+                      </p>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Tipo de Criatura */}
                 <div>
-                  <label className="block text-slate-300 font-medium mb-1">Tipo de Ameaça / Papel</label>
+                  <label className="block text-slate-300 font-medium mb-1">Papel Temático</label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                     {(['BOSS', 'MINION', 'ALLY', 'RIVAL', 'MERCHANT'] as const).map((t) => (
                       <button
@@ -3667,6 +3848,49 @@ export function App() {
                   </div>
                 </div>
 
+                {/* Seletor de Categoria / Tier */}
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Categoria de Ameaça</label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditNpcTier('COMMON')}
+                      className={`py-1.5 px-2 rounded text-xs font-semibold flex items-center justify-center gap-1 transition cursor-pointer ${
+                        editNpcTier === 'COMMON'
+                          ? 'bg-slate-700 text-white border border-slate-500'
+                          : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200'
+                      }`}
+                    >
+                      <User className="w-3 h-3" />
+                      <span>Comum</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditNpcTier('MINI_BOSS')}
+                      className={`py-1.5 px-2 rounded text-xs font-semibold flex items-center justify-center gap-1 transition cursor-pointer ${
+                        editNpcTier === 'MINI_BOSS'
+                          ? 'bg-indigo-950/90 text-indigo-200 border border-indigo-500/60'
+                          : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200'
+                      }`}
+                    >
+                      <Swords className="w-3 h-3 text-indigo-400" />
+                      <span>Mini Boss</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditNpcTier('BOSS')}
+                      className={`py-1.5 px-2 rounded text-xs font-semibold flex items-center justify-center gap-1 transition cursor-pointer ${
+                        editNpcTier === 'BOSS'
+                          ? 'bg-rose-950/90 text-rose-200 border border-rose-500/60'
+                          : 'bg-slate-950 text-slate-400 border border-slate-800 hover:text-slate-200'
+                      }`}
+                    >
+                      <Crown className="w-3 h-3 text-amber-400" />
+                      <span>Grande Chefe</span>
+                    </button>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-slate-300 font-medium mb-1">URL da Imagem / Avatar</label>
                   <div className="flex gap-2 items-center">
@@ -3689,14 +3913,39 @@ export function App() {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-medium mb-1">Atributos & Combate (Estatísticas)</label>
+                  <label className="block text-slate-300 font-medium mb-1">Atributos & Estatísticas Numéricas</label>
                   <textarea
-                    rows={3}
+                    rows={2}
                     placeholder="FOR: 18 | DES: 14 | CON: 16 | PV: 50/50 | CA: 16..."
                     value={editNpcAttributes}
                     onChange={e => setEditNpcAttributes(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500 font-mono text-[11px]"
                   />
+                  <p className="text-[10px] text-slate-500 mt-0.5">Apenas valores numéricos e vitais (renderizados em tabela).</p>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Habilidades & Técnicas de Combate</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Ex: Soco de Concreto: 0 Ki (Dano FOR x 2) | Postura de Absorção: 2 Ki..."
+                    value={editNpcSkills}
+                    onChange={e => setEditNpcSkills(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500 text-[11px]"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-0.5">Golpes, custos de Ki/Mana e efeitos.</p>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-medium mb-1">Estratégia de Combate / Padrão de Ação</label>
+                  <textarea
+                    rows={2}
+                    placeholder="Ex: Fase 1 (100-50% PV): O Muro | Fase 2 (<50% PV): O Cão de Briga | Fraqueza: VEL baixa..."
+                    value={editNpcCombatStrategy}
+                    onChange={e => setEditNpcCombatStrategy(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-slate-100 outline-none focus:border-amber-500 text-[11px]"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-0.5">Fases de combate, reações e fraquezas que o Mestre IA seguirá.</p>
                 </div>
 
                 <div>

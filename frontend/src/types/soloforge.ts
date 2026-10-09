@@ -62,16 +62,21 @@ export interface WorldDecision {
   createdAt: string;
 }
 
+export type NpcTier = 'COMMON' | 'MINI_BOSS' | 'BOSS';
+
 export interface Npc {
   id: string;
   campaignId: string;
   name: string;
   role?: string;
+  tier?: NpcTier;
   description?: string;
   personality?: string;
   memory?: string;
   imageUrl?: string;
   attributes?: string;
+  skills?: string;
+  combatStrategy?: string;
   isCrystallized: boolean;
   createdAt: string;
 }
