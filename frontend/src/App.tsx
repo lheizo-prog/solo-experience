@@ -525,12 +525,35 @@ export function App() {
     }
   };
 
-  const parseRollRequest = (text: string): PendingCheck | null => {
-    const match = text.match(/\[PEDIR_TESTE:\s*([dD]\d+)\s*\|\s*DT:\s*(\d+)\s*\|\s*([^|]+)\s*\|\s*([^\]]+)\]/i);
+  const parseDiceFormula = (diceStr: string): { count: number; sides: number } => {
+    const match = diceStr.toLowerCase().match(/^(\d*)d(\d+)$/);
     if (match) {
+      const count = match[1] ? parseInt(match[1], 10) : 1;
+      const sides = parseInt(match[2], 10);
+      return { count: isNaN(count) || count <= 0 ? 1 : count, sides: isNaN(sides) ? 20 : sides };
+    }
+    const fallbackSides = parseInt(diceStr.replace(/\D/g, '') || '20', 10);
+    return { count: 1, sides: fallbackSides };
+  };
+
+  const isDamageRoll = (check: PendingCheck | null | undefined): boolean => {
+    if (!check) return false;
+    return check.dc === 0 || 
+           check.attribute.toLowerCase().includes('dano') || 
+           check.attribute.toLowerCase().includes('damage') ||
+           check.reason.toLowerCase().includes('dano');
+  };
+
+  const parseRollRequest = (text: string): PendingCheck | null => {
+    // Suporta [PEDIR_TESTE: d20 | DT: 14 | Atletismo | Escalar] e rolagens de dano como [PEDIR_TESTE: 1d8 | DT: 0 | Dano (Espada) | Golpe]
+    const match = text.match(/\[PEDIR_TESTE:\s*(\d*[dD]\d+)\s*\|\s*DT:\s*(\d+|-|0|N\/?A)\s*\|\s*([^|]+)\s*\|\s*([^\]]+)\]/i);
+    if (match) {
+      const rawDice = match[1].toLowerCase();
+      const rawDc = match[2];
+      const parsedDc = parseInt(rawDc, 10);
       return {
-        dice: match[1].toLowerCase(),
-        dc: parseInt(match[2], 10),
+        dice: rawDice,
+        dc: isNaN(parsedDc) ? 0 : parsedDc,
         attribute: match[3].trim(),
         reason: match[4].trim()
       };
@@ -711,53 +734,73 @@ export function App() {
       : '';
 
     if (checkTarget) {
-      const mode = overrideMode || rollMode;
+      const isDamage = isDamageRoll(checkTarget);
       const bonus = overrideBonus !== undefined ? overrideBonus : testBonus;
-      const bonusStr = bonus !== 0 ? ` ${bonus > 0 ? '+' : '-'} ${Math.abs(bonus)} (Bônus de ${checkTarget.attribute})` : '';
 
-      if (mode === 'ADVANTAGE') {
-        const r1 = Math.floor(Math.random() * sides) + 1;
-        const r2 = Math.floor(Math.random() * sides) + 1;
-        const highest = Math.max(r1, r2);
-        const total = highest + bonus;
-        const isSuccess = total >= checkTarget.dc;
-        const isCrit = sides === 20 && highest === 20;
-        const isFumble = sides === 20 && highest === 1;
+      if (isDamage) {
+        const { count: formulaCount, sides: formulaSides } = parseDiceFormula(checkTarget.dice);
+        const count = overrideCount !== undefined ? overrideCount : formulaCount;
+        const actualSides = sides || formulaSides;
+        const rolls: number[] = [];
+        for (let i = 0; i < count; i++) {
+          rolls.push(Math.floor(Math.random() * actualSides) + 1);
+        }
+        const sum = rolls.reduce((acc, v) => acc + v, 0);
+        const total = Math.max(0, sum + bonus);
+        const formula = `${count}d${actualSides}`;
+        const rollsStr = rolls.join(', ');
+        const bonusStr = bonus !== 0 ? ` ${bonus > 0 ? '+' : '-'} ${Math.abs(bonus)} (Modificador)` : '';
 
-        let outcome = isSuccess ? 'SUCESSO' : 'FALHA';
-        if (isCrit) outcome = 'SUCESSO CRÍTICO (20 NATURAL)!';
-        if (isFumble) outcome = 'FALHA CRÍTICA (1 NATURAL)!';
-
-        const msg = `${actionPrefix}🎲 [TESTE COM VANTAGEM: ${checkTarget.attribute}]: O jogador rolou 2d${sides} [ ${r1}, ${r2} ] -> Maior: ${highest}${bonusStr} = Total ${total} vs DT ${checkTarget.dc} (${outcome}) para "${checkTarget.reason}".`;
-        handleSendMessage(msg, true);
-      } else if (mode === 'DISADVANTAGE') {
-        const r1 = Math.floor(Math.random() * sides) + 1;
-        const r2 = Math.floor(Math.random() * sides) + 1;
-        const lowest = Math.min(r1, r2);
-        const total = lowest + bonus;
-        const isSuccess = total >= checkTarget.dc;
-        const isCrit = sides === 20 && lowest === 20;
-        const isFumble = sides === 20 && lowest === 1;
-
-        let outcome = isSuccess ? 'SUCESSO' : 'FALHA';
-        if (isCrit) outcome = 'SUCESSO CRÍTICO (20 NATURAL)!';
-        if (isFumble) outcome = 'FALHA CRÍTICA (1 NATURAL)!';
-
-        const msg = `${actionPrefix}🎲 [TESTE COM DESVANTAGEM: ${checkTarget.attribute}]: O jogador rolou 2d${sides} [ ${r1}, ${r2} ] -> Menor: ${lowest}${bonusStr} = Total ${total} vs DT ${checkTarget.dc} (${outcome}) para "${checkTarget.reason}".`;
+        const msg = `${actionPrefix}💥 [ROLAGEM DE DANO: ${checkTarget.attribute}]: O jogador rolou ${formula} [ ${rollsStr} ]${bonusStr} = Total ${total} de Dano contra o alvo para "${checkTarget.reason}".`;
         handleSendMessage(msg, true);
       } else {
-        const roll = Math.floor(Math.random() * sides) + 1;
-        const total = roll + bonus;
-        const isSuccess = total >= checkTarget.dc;
-        const isCrit = sides === 20 && roll === 20;
-        const isFumble = sides === 20 && roll === 1;
+        const mode = overrideMode || rollMode;
+        const bonusStr = bonus !== 0 ? ` ${bonus > 0 ? '+' : '-'} ${Math.abs(bonus)} (Bônus de ${checkTarget.attribute})` : '';
 
-        let outcome = isSuccess ? 'SUCESSO' : 'FALHA';
-        if (isCrit) outcome = 'SUCESSO CRÍTICO (20 NATURAL)!';
-        if (isFumble) outcome = 'FALHA CRÍTICA (1 NATURAL)!';
+        if (mode === 'ADVANTAGE') {
+          const r1 = Math.floor(Math.random() * sides) + 1;
+          const r2 = Math.floor(Math.random() * sides) + 1;
+          const highest = Math.max(r1, r2);
+          const total = highest + bonus;
+          const isSuccess = total >= checkTarget.dc;
+          const isCrit = sides === 20 && highest === 20;
+          const isFumble = sides === 20 && highest === 1;
 
-        const msg = `${actionPrefix}🎲 [TESTE OFICIAL: ${checkTarget.attribute}]: O jogador rolou 1d${sides} [ ${roll} ]${bonusStr} = Total ${total} vs DT ${checkTarget.dc} (${outcome}) para "${checkTarget.reason}".`;
-        handleSendMessage(msg, true);
+          let outcome = isSuccess ? 'SUCESSO' : 'FALHA';
+          if (isCrit) outcome = 'SUCESSO CRÍTICO (20 NATURAL)!';
+          if (isFumble) outcome = 'FALHA CRÍTICA (1 NATURAL)!';
+
+          const msg = `${actionPrefix}🎲 [TESTE COM VANTAGEM: ${checkTarget.attribute}]: O jogador rolou 2d${sides} [ ${r1}, ${r2} ] -> Maior: ${highest}${bonusStr} = Total ${total} vs DT ${checkTarget.dc} (${outcome}) para "${checkTarget.reason}".`;
+          handleSendMessage(msg, true);
+        } else if (mode === 'DISADVANTAGE') {
+          const r1 = Math.floor(Math.random() * sides) + 1;
+          const r2 = Math.floor(Math.random() * sides) + 1;
+          const lowest = Math.min(r1, r2);
+          const total = lowest + bonus;
+          const isSuccess = total >= checkTarget.dc;
+          const isCrit = sides === 20 && lowest === 20;
+          const isFumble = sides === 20 && lowest === 1;
+
+          let outcome = isSuccess ? 'SUCESSO' : 'FALHA';
+          if (isCrit) outcome = 'SUCESSO CRÍTICO (20 NATURAL)!';
+          if (isFumble) outcome = 'FALHA CRÍTICA (1 NATURAL)!';
+
+          const msg = `${actionPrefix}🎲 [TESTE COM DESVANTAGEM: ${checkTarget.attribute}]: O jogador rolou 2d${sides} [ ${r1}, ${r2} ] -> Menor: ${lowest}${bonusStr} = Total ${total} vs DT ${checkTarget.dc} (${outcome}) para "${checkTarget.reason}".`;
+          handleSendMessage(msg, true);
+        } else {
+          const roll = Math.floor(Math.random() * sides) + 1;
+          const total = roll + bonus;
+          const isSuccess = total >= checkTarget.dc;
+          const isCrit = sides === 20 && roll === 20;
+          const isFumble = sides === 20 && roll === 1;
+
+          let outcome = isSuccess ? 'SUCESSO' : 'FALHA';
+          if (isCrit) outcome = 'SUCESSO CRÍTICO (20 NATURAL)!';
+          if (isFumble) outcome = 'FALHA CRÍTICA (1 NATURAL)!';
+
+          const msg = `${actionPrefix}🎲 [TESTE OFICIAL: ${checkTarget.attribute}]: O jogador rolou 1d${sides} [ ${roll} ]${bonusStr} = Total ${total} vs DT ${checkTarget.dc} (${outcome}) para "${checkTarget.reason}".`;
+          handleSendMessage(msg, true);
+        }
       }
     } else {
       // Rolagem Livre (Múltiplos dados e/ou Dano)
@@ -1982,98 +2025,136 @@ export function App() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* BANNER INTERATIVO: QUANDO O MESTRE EXIGE UM TESTE COM DT */}
-            {pendingCheck && !isLoading && (
-              <div className="mx-2 sm:mx-6 mb-2 p-3 sm:p-4 bg-gradient-to-r from-amber-950/80 to-slate-900/90 border-2 border-amber-500/70 rounded-xl shadow-xl flex flex-col gap-3 backdrop-blur-md animate-fade-in shrink-0">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                  <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                    <div className="p-2 sm:p-2.5 bg-amber-500/20 text-amber-400 rounded-lg border border-amber-500/40 shrink-0">
-                      <AlertTriangle className="w-5 h-5 animate-pulse" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                        <span className="font-bold text-amber-300 text-xs sm:text-sm">TESTE EXIGIDO:</span>
-                        <span className="px-1.5 py-0.5 bg-amber-500 text-slate-950 font-black text-[10px] sm:text-xs rounded uppercase">
-                          DT {pendingCheck.dc}
-                        </span>
-                        <span className="text-[11px] sm:text-xs text-slate-300 font-medium truncate">({pendingCheck.attribute})</span>
+            {/* BANNER INTERATIVO: QUANDO O MESTRE EXIGE UM TESTE COM DT OU ROLAGEM DE DANO */}
+            {pendingCheck && !isLoading && (() => {
+              const isDamage = isDamageRoll(pendingCheck);
+              const { count: diceCount, sides: diceSides } = parseDiceFormula(pendingCheck.dice);
+
+              return (
+                <div className={`mx-2 sm:mx-6 mb-2 p-3 sm:p-4 rounded-xl shadow-xl flex flex-col gap-3 backdrop-blur-md animate-fade-in shrink-0 border-2 ${
+                  isDamage 
+                    ? 'bg-gradient-to-r from-red-950/80 via-rose-950/70 to-slate-900/90 border-red-500/70 shadow-red-900/20' 
+                    : 'bg-gradient-to-r from-amber-950/80 to-slate-900/90 border-amber-500/70 shadow-amber-900/20'
+                }`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                      <div className={`p-2 sm:p-2.5 rounded-lg border shrink-0 ${
+                        isDamage 
+                          ? 'bg-red-500/20 text-red-400 border-red-500/40' 
+                          : 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                      }`}>
+                        {isDamage ? (
+                          <Sword className="w-5 h-5 animate-pulse text-red-400" />
+                        ) : (
+                          <AlertTriangle className="w-5 h-5 animate-pulse" />
+                        )}
                       </div>
-                      <p className="text-[11px] sm:text-xs text-slate-300 mt-0.5 line-clamp-1">
-                        Motivo: <span className="italic text-slate-200">"{pendingCheck.reason}"</span>
-                      </p>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                          <span className={`font-bold text-xs sm:text-sm ${isDamage ? 'text-red-300' : 'text-amber-300'}`}>
+                            {isDamage ? 'ROLAGEM DE DANO:' : 'TESTE EXIGIDO:'}
+                          </span>
+                          {isDamage ? (
+                            <span className="px-1.5 py-0.5 bg-red-600 text-white font-black text-[10px] sm:text-xs rounded uppercase tracking-wider">
+                              {pendingCheck.dice.toUpperCase()}
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 bg-amber-500 text-slate-950 font-black text-[10px] sm:text-xs rounded uppercase">
+                              DT {pendingCheck.dc}
+                            </span>
+                          )}
+                          <span className="text-[11px] sm:text-xs text-slate-300 font-medium truncate">
+                            ({pendingCheck.attribute})
+                          </span>
+                        </div>
+                        <p className="text-[11px] sm:text-xs text-slate-300 mt-0.5 line-clamp-1">
+                          {isDamage ? 'Alvo / Golpe:' : 'Motivo:'} <span className="italic text-slate-200">"{pendingCheck.reason}"</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Controles de Modo (se teste regular) e Stepper de Bônus / Modificador */}
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      {!isDamage && (
+                        <div className="flex items-center bg-slate-950/80 border border-slate-800 rounded-lg p-0.5 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setRollMode('NORMAL')}
+                            className={`px-2 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
+                              rollMode === 'NORMAL' ? 'bg-amber-600/30 text-amber-300 border border-amber-500/40' : 'text-slate-400 hover:text-slate-200'
+                            }`}
+                          >
+                            Normal
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRollMode('ADVANTAGE')}
+                            className={`px-2 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
+                              rollMode === 'ADVANTAGE' ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40' : 'text-slate-400 hover:text-slate-200'
+                            }`}
+                            title="Rola 2 dados e seleciona o maior"
+                          >
+                            Vantagem (2d)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRollMode('DISADVANTAGE')}
+                            className={`px-2 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
+                              rollMode === 'DISADVANTAGE' ? 'bg-rose-600/30 text-rose-300 border border-rose-500/40' : 'text-slate-400 hover:text-slate-200'
+                            }`}
+                            title="Rola 2 dados e seleciona o menor"
+                          >
+                            Desvantagem (2d)
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Stepper de Bônus de Modificador */}
+                      <div className="flex items-center bg-slate-950/80 border border-slate-800 rounded-lg px-2 py-1 gap-1.5 text-xs">
+                        <span className="text-[11px] text-slate-400 font-medium">
+                          {isDamage ? 'Modif.:' : 'Bônus:'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setTestBonus(prev => prev - 1)}
+                          className="w-5 h-5 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-200 rounded font-bold cursor-pointer text-xs"
+                        >
+                          -
+                        </button>
+                        <span className={`font-mono text-xs font-bold min-w-[24px] text-center ${testBonus > 0 ? 'text-emerald-400' : testBonus < 0 ? 'text-rose-400' : 'text-slate-200'}`}>
+                          {testBonus >= 0 ? `+${testBonus}` : testBonus}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setTestBonus(prev => prev + 1)}
+                          className="w-5 h-5 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-200 rounded font-bold cursor-pointer text-xs"
+                        >
+                          +
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Controles de Modo (Normal, Vantagem, Desvantagem) e Bônus */}
-                  <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    <div className="flex items-center bg-slate-950/80 border border-slate-800 rounded-lg p-0.5 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => setRollMode('NORMAL')}
-                        className={`px-2 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
-                          rollMode === 'NORMAL' ? 'bg-amber-600/30 text-amber-300 border border-amber-500/40' : 'text-slate-400 hover:text-slate-200'
-                        }`}
-                      >
-                        Normal
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRollMode('ADVANTAGE')}
-                        className={`px-2 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
-                          rollMode === 'ADVANTAGE' ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40' : 'text-slate-400 hover:text-slate-200'
-                        }`}
-                        title="Rola 2 dados e seleciona o maior"
-                      >
-                        Vantagem (2d)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setRollMode('DISADVANTAGE')}
-                        className={`px-2 py-1 rounded-md text-[11px] font-medium transition cursor-pointer ${
-                          rollMode === 'DISADVANTAGE' ? 'bg-rose-600/30 text-rose-300 border border-rose-500/40' : 'text-slate-400 hover:text-slate-200'
-                        }`}
-                        title="Rola 2 dados e seleciona o menor"
-                      >
-                        Desvantagem (2d)
-                      </button>
-                    </div>
-
-                    {/* Stepper de Bônus de Perícia */}
-                    <div className="flex items-center bg-slate-950/80 border border-slate-800 rounded-lg px-2 py-1 gap-1.5 text-xs">
-                      <span className="text-[11px] text-slate-400 font-medium">Bônus:</span>
-                      <button
-                        type="button"
-                        onClick={() => setTestBonus(prev => prev - 1)}
-                        className="w-5 h-5 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-200 rounded font-bold cursor-pointer text-xs"
-                      >
-                        -
-                      </button>
-                      <span className={`font-mono text-xs font-bold min-w-[24px] text-center ${testBonus > 0 ? 'text-emerald-400' : testBonus < 0 ? 'text-rose-400' : 'text-slate-200'}`}>
-                        {testBonus >= 0 ? `+${testBonus}` : testBonus}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setTestBonus(prev => prev + 1)}
-                        className="w-5 h-5 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-200 rounded font-bold cursor-pointer text-xs"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
+                  <button
+                    onClick={() => openRollConfirmModal(diceSides, pendingCheck, diceCount, rollMode, testBonus)}
+                    className={`w-full min-h-[44px] px-4 py-2.5 font-bold text-xs sm:text-sm rounded-lg flex items-center justify-center gap-2 transition shadow-lg cursor-pointer shrink-0 ${
+                      isDamage
+                        ? 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-red-700/30'
+                        : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-amber-600/30'
+                    }`}
+                  >
+                    {isDamage ? <Flame className="w-4 sm:w-5 h-4 sm:h-5" /> : <Dices className="w-4 sm:w-5 h-4 sm:h-5" />}
+                    <span>
+                      {isDamage ? (
+                        `💥 Rolar Dano (${pendingCheck.dice.toLowerCase()})${testBonus !== 0 ? ` (${testBonus > 0 ? '+' : ''}${testBonus})` : ''} agora!`
+                      ) : (
+                        `Rolar ${rollMode === 'ADVANTAGE' ? `2${pendingCheck.dice.toLowerCase()} com Vantagem` : rollMode === 'DISADVANTAGE' ? `2${pendingCheck.dice.toLowerCase()} com Desvantagem` : `1${pendingCheck.dice.toLowerCase()}`}${testBonus !== 0 ? ` (${testBonus > 0 ? '+' : ''}${testBonus})` : ''} contra DT ${pendingCheck.dc} agora!`
+                      )}
+                    </span>
+                  </button>
                 </div>
-
-                <button
-                  onClick={() => openRollConfirmModal(parseInt(pendingCheck.dice.replace(/\D/g, '') || '20', 10), pendingCheck, undefined, rollMode, testBonus)}
-                  className="w-full min-h-[44px] px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs sm:text-sm rounded-lg flex items-center justify-center gap-2 transition shadow-lg shadow-amber-600/30 cursor-pointer shrink-0"
-                >
-                  <Dices className="w-4 sm:w-5 h-4 sm:h-5" />
-                  <span>
-                    Rolar {rollMode === 'ADVANTAGE' ? `2${pendingCheck.dice.toLowerCase()} com Vantagem` : rollMode === 'DISADVANTAGE' ? `2${pendingCheck.dice.toLowerCase()} com Desvantagem` : `1${pendingCheck.dice.toLowerCase()}`}
-                    {testBonus !== 0 ? ` (${testBonus > 0 ? '+' : ''}${testBonus})` : ''} contra DT {pendingCheck.dc} agora!
-                  </span>
-                </button>
-              </div>
-            )}
+              );
+            })()}
 
             {/* BARRA DE ROLAGEM RÁPIDA DE DADOS & INPUT BAR */}
             <div className="p-2.5 sm:p-4 border-t border-slate-800 bg-slate-900/50 space-y-2 sm:space-y-3 shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
@@ -3932,18 +4013,34 @@ export function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
           <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
             {/* Header */}
-            <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900">
+            <div className={`p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between ${
+              rollConfirmData.checkTarget && isDamageRoll(rollConfirmData.checkTarget)
+                ? 'bg-gradient-to-r from-red-950/50 via-slate-900 to-slate-900'
+                : 'bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-900'
+            }`}>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                  <Dices className="w-5 h-5" />
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${
+                  rollConfirmData.checkTarget && isDamageRoll(rollConfirmData.checkTarget)
+                    ? 'bg-red-500/20 border-red-500/30 text-red-400'
+                    : 'bg-amber-500/20 border-amber-500/30 text-amber-400'
+                }`}>
+                  {rollConfirmData.checkTarget && isDamageRoll(rollConfirmData.checkTarget) ? (
+                    <Sword className="w-5 h-5" />
+                  ) : (
+                    <Dices className="w-5 h-5" />
+                  )}
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                    Confirmar Rolagem de Dados
+                    {rollConfirmData.checkTarget && isDamageRoll(rollConfirmData.checkTarget)
+                      ? 'Confirmar Rolagem de Dano'
+                      : 'Confirmar Rolagem de Dados'}
                   </h3>
                   <p className="text-xs text-slate-400">
                     {rollConfirmData.checkTarget 
-                      ? `Teste Oficial: ${rollConfirmData.checkTarget.attribute} (DT ${rollConfirmData.checkTarget.dc})`
+                      ? isDamageRoll(rollConfirmData.checkTarget)
+                        ? `Rolagem de Dano: ${rollConfirmData.checkTarget.attribute}`
+                        : `Teste Oficial: ${rollConfirmData.checkTarget.attribute} (DT ${rollConfirmData.checkTarget.dc})`
                       : `Rolagem Livre: ${rollConfirmData.count || 1}d${rollConfirmData.sides}`}
                   </p>
                 </div>
@@ -3965,11 +4062,19 @@ export function App() {
                   <span className="text-[11px] text-slate-400 block font-medium">Mecânica / Fórmula</span>
                   <span className="text-sm font-mono font-bold text-amber-400">
                     {rollConfirmData.checkTarget ? (
-                      <>
-                        {rollConfirmData.mode === 'ADVANTAGE' ? `2${rollConfirmData.checkTarget.dice} (Vantagem)` : rollConfirmData.mode === 'DISADVANTAGE' ? `2${rollConfirmData.checkTarget.dice} (Desvantagem)` : `1${rollConfirmData.checkTarget.dice}`}
-                        {(rollConfirmData.bonus || 0) !== 0 ? ` ${(rollConfirmData.bonus || 0) > 0 ? '+' : ''}${rollConfirmData.bonus}` : ''}
-                        <span className="text-slate-400 font-sans text-xs ml-1.5">vs DT {rollConfirmData.checkTarget.dc}</span>
-                      </>
+                      isDamageRoll(rollConfirmData.checkTarget) ? (
+                        <>
+                          <span className="text-red-400 font-bold">{rollConfirmData.count || 1}d{rollConfirmData.sides}</span>
+                          {(rollConfirmData.bonus || 0) !== 0 ? ` ${(rollConfirmData.bonus || 0) > 0 ? '+' : ''}${rollConfirmData.bonus}` : ''}
+                          <span className="text-rose-400/90 font-sans text-xs ml-1.5 font-bold">(Dano)</span>
+                        </>
+                      ) : (
+                        <>
+                          {rollConfirmData.mode === 'ADVANTAGE' ? `2${rollConfirmData.checkTarget.dice} (Vantagem)` : rollConfirmData.mode === 'DISADVANTAGE' ? `2${rollConfirmData.checkTarget.dice} (Desvantagem)` : `1${rollConfirmData.checkTarget.dice}`}
+                          {(rollConfirmData.bonus || 0) !== 0 ? ` ${(rollConfirmData.bonus || 0) > 0 ? '+' : ''}${rollConfirmData.bonus}` : ''}
+                          <span className="text-slate-400 font-sans text-xs ml-1.5">vs DT {rollConfirmData.checkTarget.dc}</span>
+                        </>
+                      )
                     ) : (
                       <>
                         {rollConfirmData.count || 1}d{rollConfirmData.sides}
@@ -3981,7 +4086,9 @@ export function App() {
 
                 {rollConfirmData.checkTarget && (
                   <div className="text-right max-w-[200px]">
-                    <span className="text-[10px] text-slate-400 block font-medium">Motivo / Desafio</span>
+                    <span className="text-[10px] text-slate-400 block font-medium">
+                      {isDamageRoll(rollConfirmData.checkTarget) ? 'Alvo / Golpe' : 'Motivo / Desafio'}
+                    </span>
                     <span className="text-xs text-slate-200 line-clamp-1 italic" title={rollConfirmData.checkTarget.reason}>
                       "{rollConfirmData.checkTarget.reason}"
                     </span>
@@ -3995,7 +4102,9 @@ export function App() {
                   <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
                     <span>Descreva a ação / fala do seu personagem</span>
                     {rollConfirmData.checkTarget ? (
-                      <span className="text-amber-400 text-[11px] font-normal">*Obrigatório para Teste</span>
+                      <span className={isDamageRoll(rollConfirmData.checkTarget) ? "text-red-400 text-[11px] font-normal" : "text-amber-400 text-[11px] font-normal"}>
+                        {isDamageRoll(rollConfirmData.checkTarget) ? "*Obrigatório para o Golpe" : "*Obrigatório para Teste"}
+                      </span>
                     ) : (
                       <span className="text-slate-400 text-[11px] font-normal">(Opcional)</span>
                     )}
@@ -4011,7 +4120,9 @@ export function App() {
                   onChange={(e) => setRollActionMessage(e.target.value)}
                   placeholder={
                     rollConfirmData.checkTarget
-                      ? `Ex: Firma os pés no chão, aperta o bastão e tenta ${rollConfirmData.checkTarget.reason.toLowerCase()} com determinação...`
+                      ? isDamageRoll(rollConfirmData.checkTarget)
+                        ? `Ex: Desfere o golpe com firmeza em direção ao oponente, aproveitando a abertura...`
+                        : `Ex: Firma os pés no chão, aperta o bastão e tenta ${rollConfirmData.checkTarget.reason.toLowerCase()} com determinação...`
                       : "Ex: Descreva o golpe, o feitiço ou a intenção que motivou esta rolagem (opcional)..."
                   }
                   className="w-full bg-slate-950 border border-slate-700/80 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 rounded-xl p-3 text-sm text-slate-100 placeholder-slate-500 outline-none transition"
@@ -4032,10 +4143,22 @@ export function App() {
                 type="button"
                 disabled={rollConfirmData.checkTarget ? !rollActionMessage.trim() : false}
                 onClick={() => executeRollConfirmed(rollActionMessage)}
-                className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-slate-950 font-bold rounded-xl text-xs sm:text-sm flex items-center gap-2 transition shadow-lg shadow-amber-600/20 cursor-pointer disabled:cursor-not-allowed"
+                className={`px-5 py-2.5 font-bold rounded-xl text-xs sm:text-sm flex items-center gap-2 transition shadow-lg cursor-pointer disabled:cursor-not-allowed ${
+                  rollConfirmData.checkTarget && isDamageRoll(rollConfirmData.checkTarget)
+                    ? 'bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-white shadow-red-700/20'
+                    : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-slate-950 shadow-amber-600/20'
+                }`}
               >
-                <Dices className="w-4 h-4" />
-                <span>Confirmar e Rolar Dados</span>
+                {rollConfirmData.checkTarget && isDamageRoll(rollConfirmData.checkTarget) ? (
+                  <Flame className="w-4 h-4" />
+                ) : (
+                  <Dices className="w-4 h-4" />
+                )}
+                <span>
+                  {rollConfirmData.checkTarget && isDamageRoll(rollConfirmData.checkTarget)
+                    ? 'Confirmar e Rolar Dano'
+                    : 'Confirmar e Rolar Dados'}
+                </span>
               </button>
             </div>
           </div>

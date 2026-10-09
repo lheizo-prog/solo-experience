@@ -76,6 +76,13 @@ public class WorldDecisionService {
         worldDecisionRepository.delete(decision);
     }
 
+    @Transactional
+    public void deleteDecision(UUID decisionId) {
+        WorldDecision decision = worldDecisionRepository.findById(decisionId)
+                .orElseThrow(() -> new IllegalArgumentException("Decisão não encontrada: " + decisionId));
+        worldDecisionRepository.delete(decision);
+    }
+
     private WorldDecisionDto.Response toDto(WorldDecision entity) {
         return WorldDecisionDto.Response.builder()
                 .id(entity.getId())
