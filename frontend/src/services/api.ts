@@ -1,4 +1,4 @@
-import type { Campaign, Session, Message, StoryArc, WorldDecision, Npc, StoryDirective } from '../types/soloforge';
+import type { Campaign, Session, Message, StoryArc, WorldDecision, Npc, StoryDirective, ProgressionEvaluationResponse } from '../types/soloforge';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
@@ -358,6 +358,36 @@ export const api = {
       method: 'DELETE'
     });
     if (!res.ok) throw new Error('Falha ao excluir diretriz de história');
+  },
+
+  // === BÍBLIA & PROGRESSÃO DO PERSONAGEM ===
+  async updateBible(campaignId: string, data: {
+    worldLore?: string;
+    toneAndStyle?: string;
+    playerCharacter?: string;
+    characterAttributes?: string;
+    keyThemes?: string;
+  }): Promise<Campaign> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/bible`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Falha ao atualizar a bíblia da campanha');
+    return res.json();
+  },
+
+  async evaluateCharacterProgression(campaignId: string, data: {
+    eventDescription: string;
+    progressionType?: string;
+  }): Promise<ProgressionEvaluationResponse> {
+    const res = await fetch(`${API_BASE_URL}/api/campaigns/${campaignId}/character/evaluate-progression`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Falha ao avaliar progressão de atributos com a IA');
+    return res.json();
   }
 };
 

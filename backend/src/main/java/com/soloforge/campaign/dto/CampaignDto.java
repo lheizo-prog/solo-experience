@@ -80,4 +80,35 @@ public class CampaignDto {
         private String statsAndAttributes;
         private String rollInstructions;
     }
+
+    @Data
+    public static class EvaluateProgressionRequest {
+        @NotBlank(message = "A descrição do evento ou conquista é obrigatória")
+        private String eventDescription;
+        private String progressionType;
+    }
+
+    @Data
+    @Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    public static class AttributeProgressionSuggestion {
+        private String attributeName;
+        private int suggestedIncrease;
+        private String reasoning;
+    }
+
+    @Data
+    @Builder
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    public static class ProgressionEvaluationResponse {
+        private String systemName;
+        private String systemScaleExplanation;
+        private String situationImpact;
+        private int awardedPoints;
+        private java.util.List<AttributeProgressionSuggestion> suggestedAllocations;
+        private String narrativeReasoning;
+        private String narrativeNote;
+    }
 }

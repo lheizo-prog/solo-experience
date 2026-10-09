@@ -87,6 +87,16 @@ public class CampaignController {
     }
 
     /**
+     * Avalia a evolução de atributos do personagem interpretando o sistema de regras e o evento narrativo com a IA
+     */
+    @PostMapping("/{id}/character/evaluate-progression")
+    public ResponseEntity<CampaignDto.ProgressionEvaluationResponse> evaluateCharacterProgression(
+            @PathVariable UUID id,
+            @Valid @RequestBody CampaignDto.EvaluateProgressionRequest request) {
+        return ResponseEntity.ok(campaignService.evaluateCharacterProgression(id, request));
+    }
+
+    /**
      * Sintetiza regras a partir de múltiplos arquivos enviados (.pdf, .txt, .md, .csv)
      * e atualiza o sistema de regras da campanha diretamente no banco
      */

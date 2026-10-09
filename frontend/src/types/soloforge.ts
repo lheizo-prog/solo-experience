@@ -84,3 +84,19 @@ export interface StoryDirective {
   isActive: boolean;
   createdAt: string;
 }
+
+export interface AttributeProgressionSuggestion {
+  attributeName: string;
+  suggestedIncrease: number;
+  reasoning: string;
+}
+
+export interface ProgressionEvaluationResponse {
+  systemName: string;
+  systemScaleExplanation: string;
+  situationImpact: string;
+  awardedPoints: number;
+  suggestedAllocations: AttributeProgressionSuggestion[];
+  narrativeReasoning: string;
+  narrativeNote: string;
+}
