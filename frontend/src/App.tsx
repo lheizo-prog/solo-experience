@@ -2651,65 +2651,86 @@ export function App() {
           </div>
 
           {/* Cabeçalho de Abas */}
-          <div className="flex border-b border-slate-800 bg-slate-950/50 p-1 gap-1 overflow-x-auto shrink-0 no-scrollbar">
+          <div className="flex border-b border-slate-800/80 bg-slate-950/70 p-1.5 gap-1 overflow-x-auto shrink-0 no-scrollbar">
             <button
               onClick={() => setActiveTab('character')}
-              className={`flex-1 min-w-[70px] min-h-[42px] py-2 px-1.5 text-xs font-medium rounded flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              className={`flex-1 min-w-[76px] min-h-[42px] py-2 px-1.5 text-xs rounded-lg flex items-center justify-center gap-1.5 transition-all duration-200 ease-out active:scale-[0.98] cursor-pointer ${
                 activeTab === 'character'
-                  ? 'bg-amber-600/20 text-amber-400 border border-amber-500/40'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                  ? 'bg-gradient-to-b from-amber-500/20 to-amber-600/10 text-amber-300 border border-amber-500/50 shadow-sm shadow-amber-950/50 font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent font-medium'
               }`}
             >
-              <User className="w-3.5 h-3.5" />
-              <span>Personagem</span>
+              <User className={`w-3.5 h-3.5 transition-colors ${activeTab === 'character' ? 'text-amber-400' : 'text-slate-400'}`} />
+              <span className="tracking-wide">Personagem</span>
             </button>
 
             <button
               onClick={() => setActiveTab('npcs')}
-              className={`flex-1 min-w-[70px] min-h-[42px] py-2 px-1.5 text-xs font-medium rounded flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              className={`flex-1 min-w-[76px] min-h-[42px] py-2 px-1.5 text-xs rounded-lg flex items-center justify-center gap-1.5 transition-all duration-200 ease-out active:scale-[0.98] cursor-pointer ${
                 activeTab === 'npcs'
-                  ? 'bg-amber-600/20 text-amber-400 border border-amber-500/40'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                  ? 'bg-gradient-to-b from-amber-500/20 to-amber-600/10 text-amber-300 border border-amber-500/50 shadow-sm shadow-amber-950/50 font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent font-medium'
               }`}
             >
-              <Users className="w-3.5 h-3.5" />
-              <span>NPCs ({npcs.filter(n => n.isCrystallized).length})</span>
+              <Users className={`w-3.5 h-3.5 transition-colors ${activeTab === 'npcs' ? 'text-amber-400' : 'text-slate-400'}`} />
+              <span className="tracking-wide">NPCs</span>
+              <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-semibold transition-all ${
+                activeTab === 'npcs'
+                  ? 'bg-amber-500/30 text-amber-200 border border-amber-400/40 shadow-xs'
+                  : 'bg-slate-800/80 text-slate-400 border border-slate-700/60'
+              }`}>
+                {npcs.filter(n => n.isCrystallized).length}
+              </span>
             </button>
 
             <button
               onClick={() => setActiveTab('arcs')}
-              className={`flex-1 min-w-[70px] min-h-[42px] py-2 px-1.5 text-xs font-medium rounded flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              className={`flex-1 min-w-[76px] min-h-[42px] py-2 px-1.5 text-xs rounded-lg flex items-center justify-center gap-1.5 transition-all duration-200 ease-out active:scale-[0.98] cursor-pointer ${
                 activeTab === 'arcs'
-                  ? 'bg-amber-600/20 text-amber-400 border border-amber-500/40'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                  ? 'bg-gradient-to-b from-amber-500/20 to-amber-600/10 text-amber-300 border border-amber-500/50 shadow-sm shadow-amber-950/50 font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent font-medium'
               }`}
             >
-              <Target className="w-3.5 h-3.5" />
-              <span>Arcos ({arcs.filter(a => a.status === 'ACTIVE').length})</span>
+              <Target className={`w-3.5 h-3.5 transition-colors ${activeTab === 'arcs' ? 'text-amber-400' : 'text-slate-400'}`} />
+              <span className="tracking-wide">Arcos</span>
+              <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-semibold transition-all ${
+                activeTab === 'arcs'
+                  ? 'bg-amber-500/30 text-amber-200 border border-amber-400/40 shadow-xs'
+                  : 'bg-slate-800/80 text-slate-400 border border-slate-700/60'
+              }`}>
+                {arcs.filter(a => a.status === 'ACTIVE').length}
+              </span>
             </button>
 
             <button
               onClick={() => setActiveTab('decisions')}
-              className={`flex-1 min-w-[70px] min-h-[42px] py-2 px-1.5 text-xs font-medium rounded flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              className={`flex-1 min-w-[76px] min-h-[42px] py-2 px-1.5 text-xs rounded-lg flex items-center justify-center gap-1.5 transition-all duration-200 ease-out active:scale-[0.98] cursor-pointer ${
                 activeTab === 'decisions'
-                  ? 'bg-amber-600/20 text-amber-400 border border-amber-500/40'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                  ? 'bg-gradient-to-b from-amber-500/20 to-amber-600/10 text-amber-300 border border-amber-500/50 shadow-sm shadow-amber-950/50 font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent font-medium'
               }`}
             >
-              <Landmark className="w-3.5 h-3.5" />
-              <span>Mundo ({decisions.length})</span>
+              <Landmark className={`w-3.5 h-3.5 transition-colors ${activeTab === 'decisions' ? 'text-amber-400' : 'text-slate-400'}`} />
+              <span className="tracking-wide">Mundo</span>
+              <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-semibold transition-all ${
+                activeTab === 'decisions'
+                  ? 'bg-amber-500/30 text-amber-200 border border-amber-400/40 shadow-xs'
+                  : 'bg-slate-800/80 text-slate-400 border border-slate-700/60'
+              }`}>
+                {decisions.length}
+              </span>
             </button>
 
             <button
               onClick={() => setActiveTab('bible')}
-              className={`flex-1 min-w-[70px] min-h-[42px] py-2 px-1.5 text-xs font-medium rounded flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              className={`flex-1 min-w-[76px] min-h-[42px] py-2 px-1.5 text-xs rounded-lg flex items-center justify-center gap-1.5 transition-all duration-200 ease-out active:scale-[0.98] cursor-pointer ${
                 activeTab === 'bible'
-                  ? 'bg-amber-600/20 text-amber-400 border border-amber-500/40'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                  ? 'bg-gradient-to-b from-amber-500/20 to-amber-600/10 text-amber-300 border border-amber-500/50 shadow-sm shadow-amber-950/50 font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent font-medium'
               }`}
             >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Bíblia</span>
+              <BookOpen className={`w-3.5 h-3.5 transition-colors ${activeTab === 'bible' ? 'text-amber-400' : 'text-slate-400'}`} />
+              <span className="tracking-wide">Bíblia</span>
             </button>
           </div>
 
@@ -2719,7 +2740,7 @@ export function App() {
 
             {/* ABA 0: FICHA DO PERSONAGEM DO JOGADOR (PJ) */}
             {activeTab === 'character' && (
-              <div className="space-y-4 animate-fadeIn">
+              <div className="space-y-4 animate-tab-content">
                 {/* Header do Herói com Ações Rápidas */}
                 <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800/90 space-y-3 shadow-md">
                   <div className="flex items-start justify-between gap-3">
@@ -2728,16 +2749,16 @@ export function App() {
                         <User className="w-6 h-6 text-white" />
                       </div>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <h3 className="text-sm font-bold text-slate-100 truncate">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-sm font-bold text-slate-100 tracking-wide truncate">
                             {selectedCampaign?.bible?.playerCharacter?.split('\n')[0] || 'Protagonista'}
                           </h3>
-                          <span className="text-[10px] bg-amber-950/70 border border-amber-500/40 text-amber-300 font-semibold px-2 py-0.2 rounded-full">
+                          <span className="text-[10px] bg-amber-500/15 border border-amber-500/40 text-amber-300 font-semibold px-2 py-0.5 rounded-full shadow-xs tracking-wider uppercase">
                             PJ Ativo
                           </span>
                         </div>
                         {selectedCampaign?.bible?.playerCharacter?.split('\n')[1] && (
-                          <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                          <p className="text-[11px] text-slate-400 truncate mt-0.5 font-medium">
                             {selectedCampaign.bible.playerCharacter.split('\n')[1]}
                           </p>
                         )}
@@ -2833,18 +2854,23 @@ export function App() {
 
             {/* ABA 1: ARCOS & MISSÕES */}
             {activeTab === 'arcs' && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
+              <div className="space-y-3 animate-tab-content">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-800/60">
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-1.5">
-                      <Target className="w-4 h-4 text-amber-500" />
-                      Arcos Narrativos (Quests)
+                    <h3 className="text-sm font-bold text-slate-100 tracking-wide flex items-center gap-2">
+                      <div className="p-1 rounded bg-amber-500/15 border border-amber-500/30">
+                        <Target className="w-3.5 h-3.5 text-amber-400" />
+                      </div>
+                      <span>Arcos Narrativos</span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold">
+                        {arcs.filter(a => a.status === 'ACTIVE').length} ativos
+                      </span>
                     </h3>
-                    <p className="text-[11px] text-slate-400">Objetivos ativos que o Mestre IA guia.</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Objetivos principais e secundários guiados pelo Mestre IA.</p>
                   </div>
                   <button
                     onClick={() => setIsNewArcModal(true)}
-                    className="p-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs flex items-center gap-1 transition cursor-pointer"
+                    className="p-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-sm shadow-amber-900/30"
                     title="Novo Arco"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -2925,19 +2951,24 @@ export function App() {
 
             {/* ABA 2: NPCS (CRISTALIZAÇÃO & PERSISTÊNCIA) */}
             {activeTab === 'npcs' && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
+              <div className="space-y-3 animate-tab-content">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-800/60">
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-1.5">
-                      <Users className="w-4 h-4 text-amber-500" />
-                      Personagens & NPCs
+                    <h3 className="text-sm font-bold text-slate-100 tracking-wide flex items-center gap-2">
+                      <div className="p-1 rounded bg-amber-500/15 border border-amber-500/30">
+                        <Users className="w-3.5 h-3.5 text-amber-400" />
+                      </div>
+                      <span>Personagens & NPCs</span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold">
+                        {npcs.filter(n => n.isCrystallized).length} cristalizados
+                      </span>
                     </h3>
-                    <p className="text-[11px] text-slate-400">NPCs cristalizados são lembrados pelo Mestre IA.</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">NPCs cristalizados são preservados na memória ativa do Mestre IA.</p>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => setIsAiNpcModal(true)}
-                      className="px-2.5 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white rounded text-xs font-medium flex items-center gap-1.5 transition cursor-pointer shadow-sm shadow-amber-900/30"
+                      className="px-2.5 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white rounded text-xs font-medium flex items-center gap-1.5 transition cursor-pointer shadow-sm shadow-amber-900/30 active:scale-95"
                       title="Forjar NPC, Inimigo ou Boss com IA baseado no sistema de regras"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
@@ -2945,7 +2976,7 @@ export function App() {
                     </button>
                     <button
                       onClick={() => setIsNewNpcModal(true)}
-                      className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded text-xs flex items-center gap-1 transition cursor-pointer border border-slate-700"
+                      className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded text-xs flex items-center gap-1 transition cursor-pointer border border-slate-700 active:scale-95"
                       title="Novo NPC Manual"
                     >
                       <Plus className="w-3.5 h-3.5" />
@@ -3198,18 +3229,23 @@ export function App() {
 
             {/* ABA 2: DECISÕES DO MUNDO (MEMÓRIA PERMANENTE) */}
             {activeTab === 'decisions' && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
+              <div className="space-y-3 animate-tab-content">
+                <div className="flex items-center justify-between pb-1 border-b border-slate-800/60">
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-1.5">
-                      <Landmark className="w-4 h-4 text-amber-500" />
-                      Memória do Mundo
+                    <h3 className="text-sm font-bold text-slate-100 tracking-wide flex items-center gap-2">
+                      <div className="p-1 rounded bg-amber-500/15 border border-amber-500/30">
+                        <Landmark className="w-3.5 h-3.5 text-amber-400" />
+                      </div>
+                      <span>Memória do Mundo</span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold">
+                        {decisions.length} fatos
+                      </span>
                     </h3>
-                    <p className="text-[11px] text-slate-400">Marcas e consequências que o Mestre recorda.</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Marcas permanentes e escolhas históricas que afetam a narrativa.</p>
                   </div>
                   <button
                     onClick={() => setIsNewDecisionModal(true)}
-                    className="p-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs flex items-center gap-1 transition cursor-pointer"
+                    className="p-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-sm shadow-amber-900/30"
                     title="Registrar Decisão"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -3260,21 +3296,29 @@ export function App() {
 
             {/* ABA 3: BÍBLIA & REGRAS */}
             {activeTab === 'bible' && (
-              <div className="space-y-3 text-xs">
+              <div className="space-y-3 text-xs animate-tab-content">
                 {/* Cabeçalho da Aba & Ações Globais */}
                 <div className="flex items-center justify-between pb-1 border-b border-slate-800/60">
-                  <span className="text-[11px] text-slate-400 font-medium">Bíblia & Regras da Campanha</span>
+                  <div className="flex items-center gap-2">
+                    <div className="p-1 rounded bg-amber-500/15 border border-amber-500/30">
+                      <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-100 tracking-wide">Bíblia da Campanha</h3>
+                      <p className="text-[11px] text-slate-400">Regras, criação de personagem e lore canônico.</p>
+                    </div>
+                  </div>
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => toggleAllBibleSections(true)}
-                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-[10px] text-slate-400 hover:text-slate-200 border border-slate-800 rounded transition cursor-pointer"
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-[10px] text-slate-400 hover:text-slate-200 border border-slate-800 hover:border-slate-700 rounded transition cursor-pointer font-medium active:scale-95"
                       title="Expandir todas as seções da bíblia"
                     >
                       Expandir Todas
                     </button>
                     <button
                       onClick={() => toggleAllBibleSections(false)}
-                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-[10px] text-slate-400 hover:text-slate-200 border border-slate-800 rounded transition cursor-pointer"
+                      className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-[10px] text-slate-400 hover:text-slate-200 border border-slate-800 hover:border-slate-700 rounded transition cursor-pointer font-medium active:scale-95"
                       title="Recolher todas as seções da bíblia"
                     >
                       Recolher Todas

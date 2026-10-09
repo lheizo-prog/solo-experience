@@ -145,3 +145,23 @@
 .animate-pulse-glow {
   animation: pulseGlow 3s ease-in-out infinite;
 }
+
+/* Fluid Tab & Content Transition */
+@keyframes tabFadeSlide {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-tab-content {
+  animation: tabFadeSlide 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-fadeIn {
+  animation: tabFadeSlide 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
