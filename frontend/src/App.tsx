@@ -50,6 +50,8 @@ import {
 } from 'lucide-react';
 
 import { LoginScreen } from './components/LoginScreen';
+import { AttributeTableView } from './components/AttributeTableView';
+import { MiniCharacterBanner } from './components/MiniCharacterBanner';
 import { api } from './services/api';
 
 import type { Campaign, Session, Message, StoryArc, WorldDecision, Npc, StoryDirective, ProgressionEvaluationResponse } from './types/soloforge';
@@ -61,7 +63,7 @@ interface PendingCheck {
   reason: string;    // ex: "Desviar da armadilha de espinhos"
 }
 
-type RightPanelTab = 'bible' | 'arcs' | 'decisions' | 'npcs';
+type RightPanelTab = 'character' | 'npcs' | 'arcs' | 'decisions' | 'bible';
 
 
 export function App() {
@@ -118,7 +120,9 @@ export function App() {
   const [isSubmittingDirective, setIsSubmittingDirective] = useState(false);
 
   // Painel Direito: Abas
-  const [activeTab, setActiveTab] = useState<RightPanelTab>('arcs');
+  const [activeTab, setActiveTab] = useState<RightPanelTab>('character');
+  const [isPjMiniBannerOpen, setIsPjMiniBannerOpen] = useState(true);
+  const [isFullCharacterBioExpanded, setIsFullCharacterBioExpanded] = useState(false);
   const [arcs, setArcs] = useState<StoryArc[]>([]);
   const [decisions, setDecisions] = useState<WorldDecision[]>([]);
   const [npcs, setNpcs] = useState<Npc[]>([]);
@@ -1998,6 +2002,19 @@ export function App() {
           </div>
         ) : (
           <>
+            {/* MINI-BANNER DE STATUS RÁPIDO DO PJ */}
+            <MiniCharacterBanner
+              characterDescription={selectedCampaign?.bible?.playerCharacter}
+              rawAttributes={selectedCampaign?.bible?.characterAttributes}
+              isOpen={isPjMiniBannerOpen}
+              onToggleOpen={() => setIsPjMiniBannerOpen(prev => !prev)}
+              onOpenCharacterSheet={() => {
+                setActiveTab('character');
+                setIsMobileRightOpen(true);
+              }}
+              onEvolveCharacter={handleOpenEvolveCharacter}
+            />
+
             {/* Mensagens da Aventura */}
             <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6 space-y-3 sm:space-y-4">
               {/* Banner de Restauração quando o chat foi limpo visualmente */}
@@ -2413,15 +2430,15 @@ export function App() {
           {/* Cabeçalho de Abas */}
           <div className="flex border-b border-slate-800 bg-slate-950/50 p-1 gap-1 overflow-x-auto shrink-0 no-scrollbar">
             <button
-              onClick={() => setActiveTab('arcs')}
+              onClick={() => setActiveTab('character')}
               className={`flex-1 min-w-[70px] min-h-[42px] py-2 px-1.5 text-xs font-medium rounded flex items-center justify-center gap-1.5 transition cursor-pointer ${
-                activeTab === 'arcs'
+                activeTab === 'character'
                   ? 'bg-amber-600/20 text-amber-400 border border-amber-500/40'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
               }`}
             >
-              <Target className="w-3.5 h-3.5" />
-              <span>Arcos ({arcs.filter(a => a.status === 'ACTIVE').length})</span>
+              <User className="w-3.5 h-3.5" />
+              <span>Personagem</span>
             </button>
 
             <button
@@ -2434,6 +2451,18 @@ export function App() {
             >
               <Users className="w-3.5 h-3.5" />
               <span>NPCs ({npcs.filter(n => n.isCrystallized).length})</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('arcs')}
+              className={`flex-1 min-w-[70px] min-h-[42px] py-2 px-1.5 text-xs font-medium rounded flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                activeTab === 'arcs'
+                  ? 'bg-amber-600/20 text-amber-400 border border-amber-500/40'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+              }`}
+            >
+              <Target className="w-3.5 h-3.5" />
+              <span>Arcos ({arcs.filter(a => a.status === 'ACTIVE').length})</span>
             </button>
 
             <button
@@ -2464,6 +2493,120 @@ export function App() {
 
           {/* Conteúdo da Aba */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
+
+            {/* ABA 0: FICHA DO PERSONAGEM DO JOGADOR (PJ) */}
+            {activeTab === 'character' && (
+              <div className="space-y-4 animate-fadeIn">
+                {/* Header do Herói com Ações Rápidas */}
+                <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800/90 space-y-3 shadow-md">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-600 to-amber-900 border border-amber-400/40 flex items-center justify-center shrink-0 shadow-inner">
+                        <User className="w-6 h-6 text-white" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h3 className="text-sm font-bold text-slate-100 truncate">
+                            {selectedCampaign?.bible?.playerCharacter?.split('\n')[0] || 'Protagonista'}
+                          </h3>
+                          <span className="text-[10px] bg-amber-950/70 border border-amber-500/40 text-amber-300 font-semibold px-2 py-0.2 rounded-full">
+                            PJ Ativo
+                          </span>
+                        </div>
+                        {selectedCampaign?.bible?.playerCharacter?.split('\n')[1] && (
+                          <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                            {selectedCampaign.bible.playerCharacter.split('\n')[1]}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={handleOpenEvolveCharacter}
+                        className="px-2.5 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white rounded text-xs font-medium flex items-center gap-1.5 transition cursor-pointer shadow-sm shadow-amber-900/30 active:scale-95"
+                        title="Evoluir Atributos por Marco/Nível com IA"
+                      >
+                        <TrendingUp className="w-3.5 h-3.5" />
+                        <span>Evoluir (IA)</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const pjContent = [
+                            selectedCampaign?.bible?.playerCharacter || '',
+                            selectedCampaign?.bible?.characterAttributes ? `Atributos:\n${selectedCampaign.bible.characterAttributes}` : ''
+                          ].filter(Boolean).join('\n\n');
+                          handleCopyToClipboard(pjContent, 'pj-full-sheet');
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-slate-800 rounded transition cursor-pointer"
+                        title="Copiar Ficha Completa"
+                      >
+                        {copiedId === 'pj-full-sheet' ? (
+                          <Check className="w-4 h-4 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tabela de Atributos & Combate Padronizada */}
+                <AttributeTableView
+                  rawAttributes={selectedCampaign?.bible?.characterAttributes}
+                  title="Tabela de Atributos & Estatísticas"
+                  copyId="pj-char-attributes"
+                  onCopy={handleCopyToClipboard}
+                  copiedId={copiedId}
+                  emptyMessage="Nenhum atributo registrado para o personagem. Você pode defini-los na Bíblia ou evoluir com IA."
+                />
+
+                {/* Detalhes de Antecedente, História e Memória (Enxuto por padrão, expansível completo) */}
+                <div className="p-3 bg-slate-950/60 rounded-lg border border-slate-800/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <BookOpen className="w-3.5 h-3.5 text-amber-500" />
+                      Histórico & Conceito do Herói
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsFullCharacterBioExpanded(prev => !prev)}
+                      className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <span>{isFullCharacterBioExpanded ? 'Resumir' : 'Ver Texto Completo'}</span>
+                      {isFullCharacterBioExpanded ? (
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+
+                  {isFullCharacterBioExpanded ? (
+                    <div className="pt-2 border-t border-slate-800/80 animate-fadeIn space-y-2">
+                      <p className="text-slate-300 leading-relaxed whitespace-pre-line text-xs font-sans">
+                        {selectedCampaign?.bible?.playerCharacter || 'Nenhum histórico detalhado informado.'}
+                      </p>
+                      <p className="text-[10px] text-slate-500 italic border-t border-slate-800/60 pt-1">
+                        Memória integral ativa enviada ao Mestre IA em todas as decisões.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="text-slate-400 text-xs leading-relaxed line-clamp-3">
+                      {selectedCampaign?.bible?.playerCharacter ? (
+                        <p className="italic">
+                          {selectedCampaign.bible.playerCharacter.split('\n').filter(Boolean).slice(0, 3).join(' ')}...
+                        </p>
+                      ) : (
+                        <p className="text-slate-500 italic">Nenhum histórico informado.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* ABA 1: ARCOS & MISSÕES */}
             {activeTab === 'arcs' && (
@@ -2758,34 +2901,16 @@ export function App() {
                             </div>
                           </div>
 
-                          {/* REQUISITO: Atributos SEMPRE VISÍVEIS (mesmo com card reduzido) */}
+                          {/* REQUISITO: Atributos Estruturados em Tabela (Paridade com a ficha do PJ) */}
                           {npc.attributes && (
-                            <div className="bg-slate-900/90 rounded border border-amber-950/60 p-2 text-[11px] font-mono text-amber-200/90 leading-tight">
-                              <div className="flex items-center justify-between gap-1 text-[10px] uppercase tracking-wider text-amber-500 font-sans font-semibold mb-1">
-                                <div className="flex items-center gap-1">
-                                  <Sword className="w-3 h-3" />
-                                  <span>Atributos & Combate:</span>
-                                </div>
-                                <button
-                                  onClick={() => handleCopyToClipboard(npc.attributes || '', `attr-${npc.id}`)}
-                                  className="text-[10px] normal-case tracking-normal text-slate-400 hover:text-amber-300 flex items-center gap-1 transition cursor-pointer"
-                                  title="Copiar atributos para a área de transferência"
-                                >
-                                  {copiedId === `attr-${npc.id}` ? (
-                                    <>
-                                      <Check className="w-3 h-3 text-emerald-400" />
-                                      <span className="text-emerald-400 font-medium">Copiado</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Copy className="w-3 h-3" />
-                                      <span>Copiar</span>
-                                    </>
-                                  )}
-                                </button>
-                              </div>
-                              <span className="whitespace-pre-wrap">{npc.attributes}</span>
-                            </div>
+                            <AttributeTableView
+                              rawAttributes={npc.attributes}
+                              title="Atributos & Combate"
+                              copyId={`attr-${npc.id}`}
+                              onCopy={handleCopyToClipboard}
+                              copiedId={copiedId}
+                              compact={true}
+                            />
                           )}
 
                           {/* Toggle de Detalhes da História (Descrição, Personalidade, Memória) */}
@@ -3058,23 +3183,26 @@ export function App() {
                         {selectedCampaign.bible?.playerCharacter || 'Não especificado ainda.'}
                       </p>
 
-                      {/* Atributos Formatados em Tags/Cards */}
+                      {/* Atributos Formatados em Tabela Padronizada */}
                       {selectedCampaign.bible?.characterAttributes && (
-                        <div className="pt-2 border-t border-slate-800/80">
-                          <span className="text-[10px] font-semibold text-amber-400 block mb-1.5 uppercase tracking-wider">
-                            Atributos & Estatísticas Ativas:
-                          </span>
-                          <div className="grid grid-cols-2 gap-1.5">
-                            {selectedCampaign.bible.characterAttributes.split('\n').filter(Boolean).map((attrLine, idx) => {
-                              const [name, ...valParts] = attrLine.split(':');
-                              const val = valParts.join(':').trim();
-                              return (
-                                <div key={idx} className="bg-slate-900/90 border border-slate-800 rounded px-2 py-1 flex items-center justify-between">
-                                  <span className="text-slate-300 font-medium text-[11px] truncate">{name.trim()}</span>
-                                  <span className="text-amber-400 font-mono font-bold text-[11px] ml-1 shrink-0">{val || '—'}</span>
-                                </div>
-                              );
-                            })}
+                        <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+                          <AttributeTableView
+                            rawAttributes={selectedCampaign.bible.characterAttributes}
+                            title="Atributos & Estatísticas Ativas"
+                            copyId="bible-character-attr"
+                            onCopy={handleCopyToClipboard}
+                            copiedId={copiedId}
+                            compact={true}
+                          />
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab('character')}
+                              className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1 font-medium cursor-pointer"
+                            >
+                              <span>Ver Ficha Completa na Aba Personagem</span>
+                              <ChevronRight className="w-3 h-3" />
+                            </button>
                           </div>
                         </div>
                       )}
