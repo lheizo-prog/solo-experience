@@ -109,7 +109,7 @@ export const AttributeTableView: React.FC<AttributeTableViewProps> = ({
     }
   };
 
-  const { entries, extraNotes } = parseAttributeData(rawAttributes);
+  const { entries, extraNotes, vitalHp } = parseAttributeData(rawAttributes);
 
   if (!rawAttributes || (!entries.length && !extraNotes.length)) {
     return (
@@ -118,6 +118,27 @@ export const AttributeTableView: React.FC<AttributeTableViewProps> = ({
       </div>
     );
   }
+
+  // Cálculo da Barra de Vida se houver vitalHp
+  const hpData = (() => {
+    if (!vitalHp) return null;
+    const match = vitalHp.value.match(/(\d+)\s*\/\s*(\d+)/);
+    if (match) {
+      const cur = parseInt(match[1], 10);
+      const max = parseInt(match[2], 10);
+      if (!isNaN(cur) && !isNaN(max) && max > 0) {
+        return { current: cur, max, percent: Math.max(0, Math.min(100, Math.round((cur / max) * 100))) };
+      }
+    }
+    const single = vitalHp.value.match(/(\d+)/);
+    if (single) {
+      const val = parseInt(single[1], 10);
+      if (!isNaN(val) && val > 0) {
+        return { current: val, max: val, percent: 100 };
+      }
+    }
+    return null;
+  })();
 
   return (
     <div className={`bg-slate-950/70 border border-slate-800/80 rounded-lg overflow-hidden ${compact ? 'p-2' : 'p-2.5'} space-y-2`}>
@@ -149,6 +170,33 @@ export const AttributeTableView: React.FC<AttributeTableViewProps> = ({
           </button>
         )}
       </div>
+
+      {/* Barra Visual de Vida (PV) se detectado */}
+      {hpData && (
+        <div className="bg-slate-900/90 border border-slate-800 rounded p-1.5 space-y-1">
+          <div className="flex items-center justify-between text-[10px] font-semibold">
+            <span className="text-emerald-400 flex items-center gap-1">
+              <Heart className="w-2.5 h-2.5 fill-emerald-500 text-emerald-400 animate-pulse" />
+              {vitalHp?.name || 'Pontos de Vida (PV)'}
+            </span>
+            <span className="font-mono text-slate-200">
+              {hpData.current} / {hpData.max} ({hpData.percent}%)
+            </span>
+          </div>
+          <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800/80">
+            <div
+              className={`h-full transition-all duration-500 rounded-full ${
+                hpData.percent > 50
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-400 shadow-sm shadow-emerald-500/30'
+                  : hpData.percent > 25
+                  ? 'bg-gradient-to-r from-amber-600 to-yellow-400 shadow-sm shadow-amber-500/30'
+                  : 'bg-gradient-to-r from-rose-600 to-red-500 shadow-sm shadow-rose-500/40 animate-pulse'
+              }`}
+              style={{ width: `${hpData.percent}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Grade / Tabela de Atributos */}
       {entries.length > 0 && (
@@ -232,16 +280,16 @@ export const NpcTierBadge: React.FC<{ tier?: NpcTier | string }> = ({ tier }) =>
 
   if (normalized === 'BOSS') {
     return (
-      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-950 to-amber-950 text-rose-300 border border-rose-500/50 flex items-center gap-1 shadow-sm shadow-rose-950/40">
-        <Crown className="w-3 h-3 text-amber-400" />
-        <span>Grande Chefe</span>
+      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-950 via-red-900 to-amber-950 text-rose-200 border border-rose-500/60 flex items-center gap-1 shadow-md shadow-rose-950/50 ring-1 ring-amber-400/30 animate-pulse">
+        <Crown className="w-3 h-3 text-amber-400 drop-shadow" />
+        <span className="tracking-wide">Grande Chefe</span>
       </span>
     );
   }
 
   if (normalized === 'MINI_BOSS') {
     return (
-      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-950/80 text-indigo-300 border border-indigo-500/40 flex items-center gap-1">
+      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gradient-to-r from-indigo-950 to-slate-900 text-indigo-200 border border-indigo-500/50 flex items-center gap-1 shadow-sm shadow-indigo-950/40">
         <Swords className="w-3 h-3 text-indigo-400" />
         <span>Mini Boss</span>
       </span>
@@ -249,7 +297,7 @@ export const NpcTierBadge: React.FC<{ tier?: NpcTier | string }> = ({ tier }) =>
   }
 
   return (
-    <span className="text-[10px] font-medium px-2 py-0.2 rounded-full bg-slate-900 text-slate-400 border border-slate-800 flex items-center gap-1">
+    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-900/90 text-slate-400 border border-slate-800 flex items-center gap-1">
       <User className="w-2.5 h-2.5 text-slate-400" />
       <span>Comum</span>
     </span>

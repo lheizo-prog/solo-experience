@@ -54,6 +54,7 @@ import {
 import { LoginScreen } from './components/LoginScreen';
 import { AttributeTableView, NpcSkillsView, NpcStrategyView, NpcTierBadge } from './components/AttributeTableView';
 import { MiniCharacterBanner } from './components/MiniCharacterBanner';
+import { ThemeSwitcher, getSavedTheme, applyTheme } from './components/ThemeSwitcher';
 import { api } from './services/api';
 
 import type { Campaign, Session, Message, StoryArc, WorldDecision, Npc, NpcTier, StoryDirective, ProgressionEvaluationResponse } from './types/soloforge';
@@ -428,6 +429,10 @@ export function App() {
     setCurrentUser(user);
     setIsAuthenticated(true);
   };
+
+  useEffect(() => {
+    applyTheme(getSavedTheme());
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -1020,6 +1025,95 @@ export function App() {
       setNewNpcSkills('');
       setNewNpcCombatStrategy('');
     }
+  };
+
+  const handleImportNpcCsv = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result as string;
+        const rows: string[][] = [];
+        let currentRow: string[] = [];
+        let currentField = '';
+        let insideQuotes = false;
+
+        for (let i = 0; i < content.length; i++) {
+          const char = content[i];
+          const nextChar = content[i + 1];
+
+          if (char === '"') {
+            if (insideQuotes && nextChar === '"') {
+              currentField += '"';
+              i++;
+            } else {
+              insideQuotes = !insideQuotes;
+            }
+          } else if (char === ',' && !insideQuotes) {
+            currentRow.push(currentField);
+            currentField = '';
+          } else if ((char === '\r' || char === '\n') && !insideQuotes) {
+            if (char === '\r' && nextChar === '\n') {
+              i++;
+            }
+            currentRow.push(currentField);
+            currentField = '';
+            if (currentRow.length > 0 && currentRow.some(c => c.trim())) {
+              rows.push(currentRow);
+            }
+            currentRow = [];
+          } else {
+            currentField += char;
+          }
+        }
+        if (currentField || currentRow.length > 0) {
+          currentRow.push(currentField);
+          if (currentRow.some(c => c.trim())) {
+            rows.push(currentRow);
+          }
+        }
+
+        if (rows.length < 2) {
+          alert('Arquivo CSV vazio ou sem linha de dados.');
+          return;
+        }
+
+        const headers = rows[0].map(h => h.trim().toLowerCase());
+        const dataRow = rows[1];
+
+        const getCol = (key: string) => {
+          const idx = headers.indexOf(key.toLowerCase());
+          return idx !== -1 ? (dataRow[idx]?.trim() || '') : '';
+        };
+
+        const importedName = getCol('name') || getCol('nome');
+        const importedRole = getCol('role') || getCol('papel') || getCol('ocupacao');
+        const rawTier = (getCol('tier') || getCol('categoria') || 'COMMON').toUpperCase();
+        const importedTier: NpcTier = (rawTier === 'BOSS' || rawTier === 'MINI_BOSS' || rawTier === 'COMMON') ? rawTier : 'COMMON';
+        const importedImageUrl = getCol('imageurl') || getCol('imagem') || getCol('avatar');
+        const importedAttributes = getCol('attributes') || getCol('atributos');
+        const importedSkills = getCol('skills') || getCol('habilidades') || getCol('tecnicas');
+        const importedStrategy = getCol('combatstrategy') || getCol('estrategia') || getCol('combate');
+        const importedPersonality = getCol('personality') || getCol('personalidade');
+        const importedMemory = getCol('memory') || getCol('memoria');
+
+        if (importedName) setNewNpcName(importedName);
+        if (importedRole) setNewNpcRole(importedRole);
+        setNewNpcTier(importedTier);
+        if (importedImageUrl) setNewNpcImageUrl(importedImageUrl);
+        if (importedAttributes) setNewNpcAttributes(importedAttributes);
+        if (importedSkills) setNewNpcSkills(importedSkills);
+        if (importedStrategy) setNewNpcCombatStrategy(importedStrategy);
+        if (importedPersonality) setNewNpcPersonality(importedPersonality);
+        if (importedMemory) setNewNpcMemory(importedMemory);
+      } catch {
+        alert('Não foi possível ler o arquivo CSV. Verifique a formatação do arquivo.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   const handleGenerateAiNpc = async (e: React.FormEvent) => {
@@ -1825,6 +1919,9 @@ export function App() {
               </button>
             )}
 
+            {/* Seletor de Atmosfera e Temas de Fundo */}
+            <ThemeSwitcher />
+
             <div className="hidden sm:flex items-center gap-1.5 text-xs text-amber-400 bg-amber-950/40 border border-amber-800/40 px-2.5 py-1 rounded-full">
               <ShieldAlert className="w-3.5 h-3.5" />
               Memória Ativa
@@ -2383,16 +2480,24 @@ export function App() {
                     </button>
                   </div>
 
-                  {/* Botões de Dados */}
-                  {[4, 6, 8, 10, 12, 20, 100].map(sides => (
+                  {/* Botões de Dados Poliédricos Táteis (Estilo Gemas RPG) */}
+                  {[
+                    { sides: 4, label: 'd4', color: 'from-amber-600/30 to-amber-700/20 text-amber-200 border-amber-500/40 hover:border-amber-400 hover:shadow-amber-500/20' },
+                    { sides: 6, label: 'd6', color: 'from-emerald-600/30 to-emerald-700/20 text-emerald-200 border-emerald-500/40 hover:border-emerald-400 hover:shadow-emerald-500/20' },
+                    { sides: 8, label: 'd8', color: 'from-cyan-600/30 to-blue-700/20 text-cyan-200 border-cyan-500/40 hover:border-cyan-400 hover:shadow-cyan-500/20' },
+                    { sides: 10, label: 'd10', color: 'from-purple-600/30 to-indigo-700/20 text-purple-200 border-purple-500/40 hover:border-purple-400 hover:shadow-purple-500/20' },
+                    { sides: 12, label: 'd12', color: 'from-orange-600/30 to-amber-700/20 text-orange-200 border-orange-500/40 hover:border-orange-400 hover:shadow-orange-500/20' },
+                    { sides: 20, label: 'd20', color: 'from-rose-600/50 via-red-600/40 to-amber-600/40 text-amber-100 border-amber-400/60 shadow-md shadow-rose-950/60 font-black ring-1 ring-amber-400/40 hover:scale-105' },
+                    { sides: 100, label: 'd100', color: 'from-slate-700/40 to-slate-800/40 text-amber-300 border-slate-600/60 hover:border-amber-400 hover:shadow-amber-500/20' }
+                  ].map(dice => (
                     <button
-                      key={sides}
-                      onClick={() => openRollConfirmModal(sides, undefined, freeDiceCount, 'NORMAL', freeDiceBonus)}
+                      key={dice.sides}
+                      onClick={() => openRollConfirmModal(dice.sides, undefined, freeDiceCount, 'NORMAL', freeDiceBonus)}
                       disabled={!selectedCampaign || isLoading}
-                      className="min-w-[42px] h-[36px] px-2 bg-slate-950 hover:bg-slate-800 active:bg-amber-950/60 disabled:opacity-40 border border-slate-800 hover:border-amber-500/50 rounded-lg text-slate-200 font-mono font-semibold transition text-xs flex items-center justify-center cursor-pointer active:scale-95 text-center shrink-0"
-                      title={freeDiceCount > 1 || freeDiceBonus !== 0 ? `Rolar ${freeDiceCount}d${sides}${freeDiceBonus !== 0 ? ` (${freeDiceBonus >= 0 ? `+${freeDiceBonus}` : freeDiceBonus})` : ''}` : `Rolar 1d${sides}`}
+                      className={`min-w-[46px] h-[38px] px-2.5 bg-gradient-to-br disabled:opacity-40 border rounded-xl font-mono font-bold transition-all text-xs flex items-center justify-center cursor-pointer active:scale-95 text-center shrink-0 shadow-sm hover:-translate-y-0.5 ${dice.color}`}
+                      title={freeDiceCount > 1 || freeDiceBonus !== 0 ? `Rolar ${freeDiceCount}${dice.label}${freeDiceBonus !== 0 ? ` (${freeDiceBonus >= 0 ? `+${freeDiceBonus}` : freeDiceBonus})` : ''}` : `Rolar 1${dice.label}`}
                     >
-                      {freeDiceCount > 1 ? `${freeDiceCount}d${sides}` : `d${sides}`}
+                      <span>{freeDiceCount > 1 ? `${freeDiceCount}${dice.label}` : dice.label}</span>
                       {freeDiceBonus !== 0 && (
                         <span className="text-[9px] text-amber-400 ml-0.5">
                           {freeDiceBonus > 0 ? `+${freeDiceBonus}` : freeDiceBonus}
@@ -2432,6 +2537,93 @@ export function App() {
                   <span className="hidden sm:inline">Ação</span>
                 </button>
               </form>
+
+              {/* BARRA INFERIOR MOBILE DE 1 TOQUE (Bottom Navigation Bar) */}
+              <nav className="lg:hidden flex items-center justify-around border-t border-slate-800/80 bg-slate-950/95 backdrop-blur-md px-1 pt-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] shrink-0 mt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMainTab('chat');
+                    setIsMobileRightOpen(false);
+                    setIsMobileLeftOpen(false);
+                  }}
+                  className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg text-[10px] font-medium transition cursor-pointer ${
+                    mainTab === 'chat' && !isMobileRightOpen && !isMobileLeftOpen
+                      ? 'text-amber-400 bg-amber-500/10 font-bold'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Sword className="w-4 h-4 mb-0.5" />
+                  <span>Aventura</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('character');
+                    setIsMobileRightOpen(true);
+                    setIsMobileLeftOpen(false);
+                  }}
+                  className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg text-[10px] font-medium transition cursor-pointer ${
+                    isMobileRightOpen && activeTab === 'character'
+                      ? 'text-amber-400 bg-amber-500/10 font-bold'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <User className="w-4 h-4 mb-0.5" />
+                  <span>Herói</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('npcs');
+                    setIsMobileRightOpen(true);
+                    setIsMobileLeftOpen(false);
+                  }}
+                  className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg text-[10px] font-medium transition cursor-pointer ${
+                    isMobileRightOpen && activeTab === 'npcs'
+                      ? 'text-amber-400 bg-amber-500/10 font-bold'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Users className="w-4 h-4 mb-0.5" />
+                  <span>NPCs</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('arcs');
+                    setIsMobileRightOpen(true);
+                    setIsMobileLeftOpen(false);
+                  }}
+                  className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg text-[10px] font-medium transition cursor-pointer ${
+                    isMobileRightOpen && activeTab === 'arcs'
+                      ? 'text-amber-400 bg-amber-500/10 font-bold'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Target className="w-4 h-4 mb-0.5" />
+                  <span>Arcos</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileLeftOpen(true);
+                    setIsMobileRightOpen(false);
+                  }}
+                  className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg text-[10px] font-medium transition cursor-pointer ${
+                    isMobileLeftOpen
+                      ? 'text-amber-400 bg-amber-500/10 font-bold'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Scroll className="w-4 h-4 mb-0.5" />
+                  <span>Crônicas</span>
+                </button>
+              </nav>
             </div>
           </>
         )}
@@ -3430,13 +3622,38 @@ export function App() {
                 <Users className="w-4 h-4" />
                 Registrar Personagem / NPC
               </h3>
-              <button
-                type="button"
-                onClick={() => setIsNewNpcModal(false)}
-                className="text-slate-400 hover:text-slate-200 p-1 rounded cursor-pointer"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                <a
+                  href={
+                    newNpcTier === 'BOSS'
+                      ? '/templates/npc_boss_template.csv'
+                      : newNpcTier === 'MINI_BOSS'
+                      ? '/templates/npc_miniboss_template.csv'
+                      : '/templates/npc_comum_template.csv'
+                  }
+                  download={
+                    newNpcTier === 'BOSS'
+                      ? 'npc_boss_template.csv'
+                      : newNpcTier === 'MINI_BOSS'
+                      ? 'npc_miniboss_template.csv'
+                      : 'npc_comum_template.csv'
+                  }
+                  className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-amber-400 rounded text-[10px] flex items-center gap-1 transition border border-slate-700"
+                  title={`Baixar modelo CSV isolado para ${newNpcTier === 'BOSS' ? 'Grande Boss' : newNpcTier === 'MINI_BOSS' ? 'Mini Boss' : 'NPC Comum'}`}
+                >
+                  <Download className="w-3 h-3 text-amber-400" />
+                  <span className="hidden sm:inline">
+                    {newNpcTier === 'BOSS' ? 'Modelo Boss' : newNpcTier === 'MINI_BOSS' ? 'Modelo Mini Boss' : 'Modelo Comum'} (.csv)
+                  </span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setIsNewNpcModal(false)}
+                  className="text-slate-400 hover:text-slate-200 p-1 rounded cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             <form onSubmit={handleCreateNpc} className="flex-1 flex flex-col min-h-0">
@@ -3505,6 +3722,63 @@ export function App() {
                       <span>Grande Chefe</span>
                     </button>
                   </div>
+                </div>
+
+                {/* Barra de Modelos CSV Isolados e Importação */}
+                <div className="flex items-center justify-between gap-1.5 p-2 bg-slate-950/70 border border-slate-800/80 rounded-lg">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] text-slate-400 font-medium">Modelos Isolados:</span>
+                    <a
+                      href="/templates/npc_comum_template.csv"
+                      download="npc_comum_template.csv"
+                      className={`px-1.5 py-0.5 rounded text-[10px] transition border ${
+                        newNpcTier === 'COMMON'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-semibold'
+                          : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+                      }`}
+                      title="Baixar modelo CSV isolado para NPC Comum"
+                    >
+                      Comum (.csv)
+                    </a>
+                    <a
+                      href="/templates/npc_miniboss_template.csv"
+                      download="npc_miniboss_template.csv"
+                      className={`px-1.5 py-0.5 rounded text-[10px] transition border ${
+                        newNpcTier === 'MINI_BOSS'
+                          ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 font-semibold'
+                          : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+                      }`}
+                      title="Baixar modelo CSV isolado para Mini Boss"
+                    >
+                      Mini Boss (.csv)
+                    </a>
+                    <a
+                      href="/templates/npc_boss_template.csv"
+                      download="npc_boss_template.csv"
+                      className={`px-1.5 py-0.5 rounded text-[10px] transition border ${
+                        newNpcTier === 'BOSS'
+                          ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 font-semibold'
+                          : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+                      }`}
+                      title="Baixar modelo CSV isolado para Grande Boss"
+                    >
+                      Boss (.csv)
+                    </a>
+                  </div>
+
+                  <label
+                    className="px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded text-[10px] flex items-center gap-1 transition cursor-pointer border border-amber-500/30 shrink-0"
+                    title="Importar arquivo CSV para preencher a ficha automaticamente"
+                  >
+                    <Upload className="w-3 h-3 text-amber-400" />
+                    <span>Importar CSV</span>
+                    <input
+                      type="file"
+                      accept=".csv"
+                      className="hidden"
+                      onChange={handleImportNpcCsv}
+                    />
+                  </label>
                 </div>
 
                 <div>
