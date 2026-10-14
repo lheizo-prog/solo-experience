@@ -66,7 +66,7 @@ public class GameSessionService {
 
         List<Message> messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
         
-        // Solicita ao Gemini para gerar um resumo crônico conciso fora da transação
+        // Solicita ao Gemini para gerar um resumo crônico épico e estruturado de "Fim de Episódio"
         String summary = "Sessão concluída.";
         if (!messages.isEmpty()) {
             StringBuilder conversationText = new StringBuilder();
@@ -77,11 +77,32 @@ public class GameSessionService {
                         .append("\n");
             }
 
-            String summaryPrompt = "Você é o Cronista Real do SoloForge. Resuma os acontecimentos mais marcantes, batalhas, decisões e descobertas da conversa a seguir em 3 a 4 tópicos épicos e concisos. Este resumo servirá de memória histórica para os próximos atos da crônica.\n\n"
-                    + "=== DIÁLOGO DA SESSÃO ===\n" + conversationText;
+            String summaryPrompt = """
+Você é o Cronista Mestre e Narrador Épico do SoloForge.
+A conversa a seguir representa um episódio/ato completo de uma crônica de RPG solo.
+Crie um fechamento triunfante com a autêntica essência de "FIM DE EPISÓDIO / FIM DE ARCO" (como nos melhores animes, séries e crônicas de fantasia).
+
+Gere a resposta rigorosamente no seguinte formato estruturado em Markdown:
+
+# Ato %d: [Título Épico do Episódio / Ato]
+
+## 📜 Crônica dos Acontecimentos
+(Um parágrafo vívido, épico e dramático recapitulando os feitos do protagonista, o tom da jornada e o clímax vivenciado nesta sessão.)
+
+## ⚔️ Feitos, Decisões & Conquistas
+- **Provações & Combates**: (Inimigos superados, testes decisivos ou perigos enfrentados)
+- **Decisões do Protagonista**: (Escolhas morais, táticas ou alianças que mudaram o rumo da história)
+- **Descobertas & Recompensas**: (Itens, pistas, segredos ou reputação adquirida)
+
+## 🔮 No Próximo Episódio...
+(Uma frase instigante, misteriosa ou profética gerando gancho/cliffhanger para o próximo ato.)
+
+=== DIÁLOGO DA SESSÃO ===
+%s
+""".formatted(session.getSessionNumber(), conversationText.toString());
 
             summary = geminiService.generateStoryResponse(
-                    "Você é um cronista e historiador épico. Gere apenas o resumo em tópicos objetivos.",
+                    "Você é o Cronista Mestre do SoloForge. Crie crônicas de encerramento de episódio memoráveis, épicas e estruturadas em Markdown.",
                     List.of(Map.of("role", "PLAYER", "text", summaryPrompt))
             );
         }
@@ -94,6 +115,21 @@ public class GameSessionService {
         Session session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("Sessão não encontrada: " + sessionId));
         session.setSummary(summary);
+
+        // Extrai o título épico da primeira linha (ex: "# Ato 2: O Despertar das Cinzas") para enriquecer a sessão
+        if (summary != null && !summary.isBlank()) {
+            String firstLine = summary.lines().findFirst().orElse("").trim();
+            if (firstLine.startsWith("#")) {
+                String cleanTitle = firstLine.replaceFirst("^#+\\s*", "").trim();
+                if (cleanTitle.length() > 140) {
+                    cleanTitle = cleanTitle.substring(0, 140);
+                }
+                if (!cleanTitle.isBlank()) {
+                    session.setTitle(cleanTitle);
+                }
+            }
+        }
+
         Session saved = sessionRepository.save(session);
 
         Campaign campaign = session.getCampaign();

@@ -22,7 +22,6 @@ import {
   Users,
   Sparkle,
   History,
-  FastForward,
   Upload,
   FileText,
   Brain,
@@ -55,6 +54,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { AttributeTableView, NpcSkillsView, NpcStrategyView, NpcTierBadge } from './components/AttributeTableView';
 import { MiniCharacterBanner } from './components/MiniCharacterBanner';
 import { ThemeSwitcher, getSavedTheme, applyTheme } from './components/ThemeSwitcher';
+import { EpisodeSummaryModal } from './components/EpisodeSummaryModal';
 import { api } from './services/api';
 
 import type { Campaign, Session, Message, StoryArc, WorldDecision, Npc, NpcTier, StoryDirective, ProgressionEvaluationResponse } from './types/soloforge';
@@ -258,6 +258,10 @@ export function App() {
   const [remainingPoints, setRemainingPoints] = useState<number>(0);
   const [showAiSuggestion, setShowAiSuggestion] = useState<boolean>(false);
   const [isSavingCharacterProgression, setIsSavingCharacterProgression] = useState(false);
+
+  // Modal de Crônica de Fim de Episódio / Ato
+  const [summaryModalSession, setSummaryModalSession] = useState<Session | null>(null);
+  const [pendingNextSession, setPendingNextSession] = useState<Session | null>(null);
 
   // Gerador de NPC/Boss com IA
   const [isAiNpcModal, setIsAiNpcModal] = useState(false);
@@ -1362,25 +1366,28 @@ export function App() {
     setIsConcludingSession(true);
 
     try {
-      // 1. Conclui a sessão e obtém o resumo gerado pelo Gemini
-      await api.concludeSession(currentSession.id);
+      // 1. Conclui a sessão e obtém a sessão com a crônica de encerramento gerada pelo Gemini
+      const concluded = await api.concludeSession(currentSession.id);
 
       // 2. Recarrega as sessões da campanha
       const updatedSessions = await api.getSessions(selectedCampaign.id);
       setSessions(updatedSessions);
 
-      // 3. Muda automaticamente para o novo Ato criado
+      // 3. Identifica a nova sessão criada (próximo ato) e o ato recém-concluído
       const nextSession = updatedSessions[updatedSessions.length - 1];
-      setCurrentSession(nextSession);
-      loadMessages(nextSession.id);
-      setPendingCheck(null);
+      const finishedSession = updatedSessions.find(s => s.id === currentSession.id) || concluded;
+
+      // 4. Abre o modal comemorativo de Fim de Episódio com o resumo e teaser
+      setPendingNextSession(nextSession);
+      setSummaryModalSession(finishedSession);
     } catch {
       // Mock offline caso a rede falhe
       const finishedActNumber = currentSession.sessionNumber;
       const nextActNumber = finishedActNumber + 1;
       const updatedMock: Session = {
         ...currentSession,
-        summary: `Resumo do Ato ${finishedActNumber}: O herói avançou bravamente pelas provações, superou perigos ancestrais e desvendou pistas críticas para a crônica.`
+        title: `Ato ${finishedActNumber}: O Despertar da Centelha`,
+        summary: `# Ato ${finishedActNumber}: O Despertar da Centelha\n\n## 📜 Crônica dos Acontecimentos\nO herói avançou bravamente pelas provações, superou perigos ancestrais e desvendou pistas críticas para o destino da crônica.\n\n## ⚔️ Feitos, Decisões & Conquistas\n- Batalha memorável contra forças hostis.\n- Escolha corajosa de manter a honra intacta diante do perigo.\n- Conquista de novo fôlego e pistas ancestrais para a jornada.\n\n## 🔮 No Próximo Episódio...\n"Nas profundezas do desconhecido, um novo chamado ecoa desafiando os limites do protagonista..."`
       };
 
       const newActMock: Session = {
@@ -1392,21 +1399,24 @@ export function App() {
       };
 
       setSessions(prev => [...prev.map(s => s.id === currentSession.id ? updatedMock : s), newActMock]);
-      setCurrentSession(newActMock);
-      setMessages([
-        {
-          id: 'intro-' + Date.now(),
-          sessionId: newActMock.id,
-          sender: 'GM',
-          senderName: 'Mestre IA',
-          content: `Inicia-se o Ato ${nextActNumber}! O pó das batalhas passadas começa a assentar, mas um novo horizonte de mistérios se descortina. O que você faz a seguir?`,
-          createdAt: new Date().toISOString()
-        }
-      ]);
-      setPendingCheck(null);
+      setPendingNextSession(newActMock);
+      setSummaryModalSession(updatedMock);
     } finally {
       setIsConcludingSession(false);
     }
+  };
+
+  const handleProceedToNextAct = () => {
+    if (!pendingNextSession) {
+      setSummaryModalSession(null);
+      return;
+    }
+    const next = pendingNextSession;
+    setCurrentSession(next);
+    loadMessages(next.id);
+    setPendingCheck(null);
+    setSummaryModalSession(null);
+    setPendingNextSession(null);
   };
 
   const handleSelectSession = (sess: Session) => {
@@ -1763,13 +1773,23 @@ export function App() {
                         : 'hover:bg-slate-800/60 text-slate-400'
                     }`}
                   >
-                    <span className="truncate">
+                    <span className="truncate pr-1">
                       {sess.title || `Ato ${sess.sessionNumber}`}
                     </span>
                     {sess.summary && (
-                      <span className="text-[9px] px-1 bg-emerald-950 text-emerald-400 rounded border border-emerald-800/40">
-                        Resumido
-                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSummaryModalSession(sess);
+                          setPendingNextSession(null);
+                        }}
+                        className="text-[9px] px-1.5 py-0.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 rounded border border-amber-500/30 font-semibold flex items-center gap-1 shrink-0 transition"
+                        title="Ver Crônica Completa deste Episódio / Ato"
+                      >
+                        <Scroll className="w-2.5 h-2.5" />
+                        <span>Crônica</span>
+                      </button>
                     )}
                   </button>
                 );
@@ -1815,22 +1835,39 @@ export function App() {
           <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             {/* Ações Desktop (Exibidas diretamente em telas md+) */}
             <div className="hidden md:flex items-center gap-2">
-              {selectedCampaign && currentSession && (
+              {/* Se o ato atual já possui crônica/resumo concluído */}
+              {selectedCampaign && currentSession?.summary && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSummaryModalSession(currentSession);
+                    setPendingNextSession(null);
+                  }}
+                  className="px-3 py-1.5 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer active:scale-95"
+                  title="Ver Crônica de Fechamento deste Ato"
+                >
+                  <Scroll className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Crônica do Ato</span>
+                </button>
+              )}
+
+              {/* Se o ato está ativo e em andamento, permite concluir com a crônica */}
+              {selectedCampaign && currentSession && !currentSession.summary && (
                 <button
                   onClick={handleConcludeSession}
                   disabled={isConcludingSession || isLoading}
-                  className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:opacity-50 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition shadow-sm shadow-amber-900/30 cursor-pointer disabled:cursor-not-allowed"
-                  title="Gera um resumo épico da sessão e inicia o próximo ato com contexto renovado"
+                  className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 disabled:opacity-50 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition shadow-sm shadow-amber-900/30 cursor-pointer disabled:cursor-not-allowed active:scale-95"
+                  title="Gera a crônica de Fim de Episódio e avança para o próximo ato"
                 >
                   {isConcludingSession ? (
                     <>
                       <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                      <span>Cronista Resumindo...</span>
+                      <span>Cronista Escrevendo...</span>
                     </>
                   ) : (
                     <>
-                      <FastForward className="w-3.5 h-3.5" />
-                      <span>Concluir Ato & Avançar</span>
+                      <Scroll className="w-3.5 h-3.5 text-amber-300" />
+                      <span>Concluir Episódio (Ato)</span>
                     </>
                   )}
                 </button>
@@ -1866,8 +1903,22 @@ export function App() {
                       className="fixed inset-0 z-30"
                       onClick={() => setIsMobileActionMenuOpen(false)}
                     />
-                    <div className="absolute right-0 top-full mt-1.5 w-48 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-1 z-40 animate-fade-in backdrop-blur-md">
-                      {currentSession && (
+                    <div className="absolute right-0 top-full mt-1.5 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-1 z-40 animate-fade-in backdrop-blur-md">
+                      {currentSession?.summary && (
+                        <button
+                          onClick={() => {
+                            setIsMobileActionMenuOpen(false);
+                            setSummaryModalSession(currentSession);
+                            setPendingNextSession(null);
+                          }}
+                          className="w-full text-left px-3.5 py-2.5 text-xs text-amber-300 hover:bg-slate-800/80 flex items-center gap-2 cursor-pointer font-medium"
+                        >
+                          <Scroll className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Ver Crônica do Ato</span>
+                        </button>
+                      )}
+
+                      {currentSession && !currentSession.summary && (
                         <button
                           onClick={() => {
                             setIsMobileActionMenuOpen(false);
@@ -1879,12 +1930,12 @@ export function App() {
                           {isConcludingSession ? (
                             <>
                               <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                              <span>Resumindo Ato...</span>
+                              <span>Escrevendo Crônica...</span>
                             </>
                           ) : (
                             <>
-                              <FastForward className="w-3.5 h-3.5" />
-                              <span>Concluir Ato Atual</span>
+                              <Scroll className="w-3.5 h-3.5 text-amber-300" />
+                              <span>Concluir Episódio (Ato)</span>
                             </>
                           )}
                         </button>
@@ -5378,6 +5429,19 @@ export function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL CINEMATOGRÁFICO: CRÔNICA DE FIM DE EPISÓDIO / ATO */}
+      {summaryModalSession && (
+        <EpisodeSummaryModal
+          session={summaryModalSession}
+          onClose={() => {
+            setSummaryModalSession(null);
+            setPendingNextSession(null);
+          }}
+          onProceedToNext={pendingNextSession ? handleProceedToNextAct : undefined}
+          isProceeding={false}
+        />
       )}
 
     </div>
